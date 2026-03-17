@@ -65,11 +65,11 @@ cargo tauri build
 ## Development
 
 ```bash
-# Install frontend dependencies
-npm install
+# Start the frontend dev server and Tauri app
+npm run tauri:dev
 
-# Run development server
-npm run tauri dev
+# Build frontend assets for desktop packaging
+npm run build
 ```
 
 ## Project Structure
@@ -85,6 +85,14 @@ voice-input-mac/
 │   │   ├── settings.rs # Settings and history storage
 │   │   └── lib.rs      # Main app entry point
 │   └── tauri.conf.json # Tauri configuration
+├── src/                # Editable frontend source
+│   ├── index.html
+│   ├── styles.css
+│   └── app.js
+├── scripts/            # Frontend build and dev helpers
+│   ├── build-frontend.mjs
+│   └── dev-frontend.mjs
+├── package.json        # Frontend and Tauri helper scripts
 ├── dist/               # Frontend assets
 │   ├── index.html
 │   ├── styles.css

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Input</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <div class="container">
+            <!-- Recording Section -->
+            <div id="recording-section" class="recording-section">
+                <div class="status-icon">
+                    <svg id="mic-icon" class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <line x1="12" y1="19" x2="12" y2="23" stroke-width="2" stroke-linecap="round"/>
+                        <line x1="8" y1="23" x2="16" y2="23" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </div>
+
+                <div id="waveform" class="waveform hidden">
+                    <div class="wave"></div>
+                    <div class="wave"></div>
+                    <div class="wave"></div>
+                    <div class="wave"></div>
+                    <div class="wave"></div>
+                </div>
+
+                <div id="status-text" class="status-text">Ready</div>
+                <div id="timer" class="timer hidden">00:00</div>
+
+                <button id="record-btn" class="btn btn-primary">
+                    <span>Start Recording</span>
+                </button>
+                <button id="stop-btn" class="btn btn-danger hidden">
+                    <span>Stop Recording</span>
+                </button>
+            </div>
+
+            <!-- Result Section -->
+            <div id="result-section" class="result-section hidden">
+                <div class="section-header">
+                    <h3>Transcription</h3>
+                    <button id="copy-result-btn" class="btn-icon" title="Copy">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" stroke-width="2"/>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke-width="2"/>
+                        </svg>
+                    </button>
+                </div>
+                <div id="result-text" class="result-text"></div>
+                <div class="result-actions">
+                    <button id="paste-btn" class="btn btn-small">Paste</button>
+                    <button id="new-recording-btn" class="btn btn-small btn-secondary">New Recording</button>
+                </div>
+            </div>
+
+            <!-- Tabs Section -->
+            <div id="tabs-section" class="tabs-section">
+                <div class="tabs">
+                    <button class="tab active" data-tab="settings">Settings</button>
+                    <button class="tab" data-tab="history">History</button>
+                </div>
+
+                <!-- Settings Tab -->
+                <div id="settings-tab" class="tab-content active">
+                    <div class="setting-item">
+                        <label for="hotkey">Global Hotkey</label>
+                        <input type="text" id="hotkey" value="Cmd+Shift+V" readonly>
+                        <button id="change-hotkey-btn" class="btn btn-small">Change</button>
+                    </div>
+
+                    <div class="setting-item">
+                        <label for="model">ASR Model</label>
+                        <select id="model">
+                            <option value="sensevoice">SenseVoice</option>
+                            <option value="whisper">Whisper</option>
+                        </select>
+                    </div>
+
+                    <div class="setting-item">
+                        <label>
+                            <input type="checkbox" id="polish" checked>
+                            <span>AI Polish (remove filler words, fix punctuation)</span>
+                        </label>
+                    </div>
+
+                    <div class="setting-item">
+                        <label>
+                            <input type="checkbox" id="auto-paste" checked>
+                            <span>Auto-paste after transcription</span>
+                        </label>
+                    </div>
+
+                    <div class="setting-item">
+                        <label>
+                            <input type="checkbox" id="use-applescript" checked>
+                            <span>Use AppleScript for paste (more reliable)</span>
+                        </label>
+                    </div>
+
+                    <div class="setting-item">
+                        <label for="history-count">History Count</label>
+                        <input type="number" id="history-count" value="50" min="10" max="500">
+                    </div>
+
+                    <button id="save-settings-btn" class="btn btn-primary">Save Settings</button>
+                </div>
+
+                <!-- History Tab -->
+                <div id="history-tab" class="tab-content">
+                    <div class="history-header">
+                        <span>Recent Transcriptions</span>
+                        <button id="clear-history-btn" class="btn btn-small btn-danger">Clear All</button>
+                    </div>
+                    <div id="history-list" class="history-list">
+                        <div class="history-empty">No history yet</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "voice-input-mac",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-frontend.mjs",
+    "dev": "node scripts/dev-frontend.mjs",
+    "tauri:dev": "cd src-tauri && cargo tauri dev",
+    "tauri:build": "cd src-tauri && cargo tauri build"
+  }
+}
