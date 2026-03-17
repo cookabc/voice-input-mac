@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
+use std::env;
+use std::fs;
 use std::path::Path;
+use std::path::PathBuf;
 use std::process::Command as StdCommand;
 use std::time::Duration;
 use tokio::process::Command;
@@ -54,11 +57,14 @@ impl AsrClient {
             audio_path_str,
         ];
 
+        let coli_executable = Self::resolve_executable_path()
+            .ok_or("Failed to locate the coli executable. Install @marswave/coli or expose `coli` on PATH.")?;
+
         eprintln!("Running coli asr with args: {:?}", args);
 
         let output = timeout(
             Duration::from_secs(120),
-            Command::new("coli")
+            Command::new(&coli_executable)
                 .kill_on_drop(true)
                 .args(&args)
                 .output(),
@@ -96,11 +102,48 @@ impl AsrClient {
     }
 
     pub fn check_availability() -> bool {
-        StdCommand::new("coli")
-            .arg("--version")
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false)
+        Self::resolve_executable_path().is_some()
+    }
+
+    pub fn resolve_executable_path() -> Option<PathBuf> {
+        if let Some(path) = search_path_for_binary("coli") {
+            return Some(path);
+        }
+
+        if let Some(nvm_bin) = env::var_os("NVM_BIN") {
+            let candidate = PathBuf::from(nvm_bin).join("coli");
+            if coli_responds(&candidate) {
+                return Some(candidate);
+            }
+        }
+
+        let home = env::var_os("HOME").map(PathBuf::from);
+
+        if let Some(home_dir) = home.as_ref() {
+            if let Some(path) = search_nvm_node_bins(home_dir) {
+                return Some(path);
+            }
+
+            for relative in [
+                ".npm-global/bin/coli",
+                ".volta/bin/coli",
+                ".local/bin/coli",
+            ] {
+                let candidate = home_dir.join(relative);
+                if coli_responds(&candidate) {
+                    return Some(candidate);
+                }
+            }
+        }
+
+        for candidate in ["/opt/homebrew/bin/coli", "/usr/local/bin/coli", "/usr/bin/coli"] {
+            let path = PathBuf::from(candidate);
+            if coli_responds(&path) {
+                return Some(path);
+            }
+        }
+
+        None
     }
 
     pub fn set_model(&mut self, model: String) {
@@ -110,6 +153,49 @@ impl AsrClient {
     pub fn set_polish(&mut self, polish: bool) {
         self.polish = polish;
     }
+}
+
+fn search_path_for_binary(binary: &str) -> Option<PathBuf> {
+    let path_var = env::var_os("PATH")?;
+
+    env::split_paths(&path_var)
+        .map(|entry| entry.join(binary))
+        .find(|candidate| coli_responds(candidate))
+}
+
+fn search_nvm_node_bins(home_dir: &Path) -> Option<PathBuf> {
+    let versions_dir = home_dir.join(".nvm/versions/node");
+    let entries = fs::read_dir(versions_dir).ok()?;
+
+    let mut candidates = entries
+        .filter_map(|entry| entry.ok().map(|item| item.path().join("bin/coli")))
+        .collect::<Vec<_>>();
+
+    candidates.sort_by(|left, right| right.cmp(left));
+    candidates.into_iter().find(|candidate| coli_responds(candidate))
+}
+
+fn coli_responds(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+
+    StdCommand::new(path)
+        .arg("-h")
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
+
+#[cfg(test)]
+fn resolve_coli_from_path_var(path_var: Option<std::ffi::OsString>) -> Option<PathBuf> {
+    let Some(path_var) = path_var else {
+        return None;
+    };
+
+    env::split_paths(&path_var)
+        .map(|entry| entry.join("coli"))
+        .find(|candidate| candidate.is_file())
 }
 
 impl Default for AsrClient {
@@ -146,4 +232,36 @@ pub async fn transcribe_audio(
 #[tauri::command]
 pub fn check_coli_available() -> bool {
     AsrClient::check_availability()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_coli_from_path_var;
+    use std::fs;
+    use std::ffi::OsString;
+    use std::path::PathBuf;
+
+    fn unique_temp_dir(name: &str) -> PathBuf {
+        let base = std::env::temp_dir().join(format!("voice-input-mac-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&base);
+        fs::create_dir_all(&base).unwrap();
+        base
+    }
+
+    #[test]
+    fn resolves_coli_from_path_entries() {
+        let temp_dir = unique_temp_dir("coli-path");
+        let coli_path = temp_dir.join("coli");
+        fs::write(&coli_path, b"#!/bin/sh\nexit 0\n").unwrap();
+
+        let path_var = OsString::from(temp_dir.into_os_string());
+        let resolved = resolve_coli_from_path_var(Some(path_var)).unwrap();
+
+        assert_eq!(resolved, coli_path);
+    }
+
+    #[test]
+    fn returns_none_when_path_is_missing() {
+        assert!(resolve_coli_from_path_var(None).is_none());
+    }
 }
