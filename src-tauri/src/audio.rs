@@ -1,6 +1,7 @@
 use std::path::PathBuf;
+use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
-use std::process::Command;
+use std::time::Instant;
 
 /// Audio recording state (Send + Sync safe)
 #[derive(Clone, Default)]
@@ -11,6 +12,8 @@ pub struct AudioRecorder {
 struct AudioRecorderInner {
     is_recording: bool,
     current_file: Option<PathBuf>,
+    current_process: Option<Child>,
+    started_at: Option<Instant>,
 }
 
 impl Default for AudioRecorderInner {
@@ -18,6 +21,8 @@ impl Default for AudioRecorderInner {
         Self {
             is_recording: false,
             current_file: None,
+            current_process: None,
+            started_at: None,
         }
     }
 }
@@ -41,8 +46,12 @@ impl AudioRecorder {
         let temp_dir = std::env::temp_dir();
         let file_path = temp_dir.join(format!(
             "voice_input_{}.wav",
-            chrono::Local::now().timestamp()
+            chrono::Local::now().timestamp_millis()
         ));
+        let file_path_str = file_path
+            .to_str()
+            .ok_or("Failed to create a valid audio path")?
+            .to_string();
 
         // Use `sox` or `ffmpeg` for recording if available
         // Otherwise, use macOS's built-in `afrecord` (deprecated but available)
@@ -59,7 +68,7 @@ impl AudioRecorder {
                     "-ac", "1",
                     "-ar", "16000",
                     "-y",
-                    file_path.to_str().unwrap(),
+                    &file_path_str,
                 ])
                 .spawn();
 
@@ -67,15 +76,20 @@ impl AudioRecorder {
                 Ok(child) => {
                     inner.is_recording = true;
                     inner.current_file = Some(file_path.clone());
-                    // Drop the child intentionally - it will continue running
-                    // We'll terminate it when stopping
-                    std::mem::forget(child);
-                    Ok(file_path.to_str().unwrap().to_string())
+                    inner.current_process = Some(child);
+                    inner.started_at = Some(Instant::now());
+                    Ok(file_path_str)
                 }
-                Err(_) => {
-                    // Fallback: try using afplay/rec approach
-                    // For now, return error if ffmpeg not available
-                    Err("ffmpeg not found. Please install: brew install ffmpeg".to_string())
+                Err(e) => {
+                    inner.is_recording = false;
+                    inner.current_file = None;
+                    inner.current_process = None;
+                    inner.started_at = None;
+
+                    Err(format!(
+                        "Failed to start ffmpeg recording: {}. Install it with: brew install ffmpeg",
+                        e
+                    ))
                 }
             }
         }
@@ -95,13 +109,52 @@ impl AudioRecorder {
 
         #[cfg(target_os = "macos")]
         {
-            // Kill any ffmpeg recording processes
-            let _ = Command::new("pkill")
-                .args(["-INT", "ffmpeg"])
-                .status();
+            let mut child = inner
+                .current_process
+                .take()
+                .ok_or("Recording process handle missing")?;
+
+            let pid = child.id() as i32;
+            let signal_result = unsafe { libc::kill(pid, libc::SIGINT) };
+
+            if signal_result != 0 {
+                return Err(format!(
+                    "Failed to signal ffmpeg process {}: {}",
+                    pid,
+                    std::io::Error::last_os_error()
+                ));
+            }
+
+            let mut exited = false;
+            for _ in 0..20 {
+                match child.try_wait() {
+                    Ok(Some(status)) => {
+                        if !status.success() {
+                            eprintln!("ffmpeg exited with status: {}", status);
+                        }
+                        exited = true;
+                        break;
+                    }
+                    Ok(None) => std::thread::sleep(std::time::Duration::from_millis(100)),
+                    Err(e) => {
+                        inner.is_recording = false;
+                        inner.current_file = None;
+                        inner.started_at = None;
+                        return Err(format!("Failed while waiting for ffmpeg to exit: {}", e));
+                    }
+                }
+            }
+
+            if !exited {
+                child
+                    .kill()
+                    .map_err(|e| format!("Failed to force-stop ffmpeg: {}", e))?;
+                let _ = child.wait();
+            }
 
             inner.is_recording = false;
             inner.current_file = None;
+            inner.started_at = None;
             Ok(())
         }
 

@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
-use std::process::Command;
 use std::path::Path;
 use std::sync::Mutex;
+use std::time::Duration;
+use tokio::process::Command;
+use tokio::time::timeout;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TranscriptionResult {
@@ -34,7 +36,7 @@ impl AsrClient {
         Self { model, polish }
     }
 
-    pub fn transcribe(&self, audio_path: &Path) -> Result<TranscriptionResult, String> {
+    pub async fn transcribe(&self, audio_path: &Path) -> Result<TranscriptionResult, String> {
         if !audio_path.exists() {
             return Err(format!("Audio file not found: {:?}", audio_path));
         }
@@ -54,10 +56,16 @@ impl AsrClient {
 
         eprintln!("Running coli asr with args: {:?}", args);
 
-        let output = Command::new("coli")
-            .args(&args)
-            .output()
-            .map_err(|e| format!("Failed to execute coli command: {}", e))?;
+        let output = timeout(
+            Duration::from_secs(120),
+            Command::new("coli")
+                .kill_on_drop(true)
+                .args(&args)
+                .output(),
+        )
+        .await
+        .map_err(|_| "coli asr timed out after 120 seconds".to_string())?
+        .map_err(|e| format!("Failed to execute coli command: {}", e))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -68,8 +76,14 @@ impl AsrClient {
 
         // Parse JSON response
         if let Ok(response) = serde_json::from_str::<ColiResponse>(&stdout) {
+            let text = if self.polish {
+                response.text_clean.unwrap_or(response.text)
+            } else {
+                response.text
+            };
+
             Ok(TranscriptionResult {
-                text: response.text_clean.unwrap_or(response.text),
+                text,
                 lang: response.lang,
                 duration: response.duration,
             })
@@ -112,7 +126,7 @@ impl AsrClientWrapper {
         Self(Mutex::new(AsrClient::default()))
     }
 
-    pub fn transcribe(&self, audio_path: &Path, model: Option<String>, polish: Option<bool>) -> Result<TranscriptionResult, String> {
+    pub async fn transcribe(&self, audio_path: &Path, model: Option<String>, polish: Option<bool>) -> Result<TranscriptionResult, String> {
         let mut client = self.0.lock().map_err(|e| e.to_string())?;
 
         if let Some(m) = model {
@@ -122,7 +136,7 @@ impl AsrClientWrapper {
             client.set_polish(p);
         }
 
-        client.transcribe(audio_path)
+        client.transcribe(audio_path).await
     }
 }
 
@@ -134,23 +148,27 @@ impl Default for AsrClientWrapper {
 
 // Tauri commands
 #[tauri::command]
-pub fn transcribe_audio(
+pub async fn transcribe_audio(
     audio_path: String,
     model: Option<String>,
     polish: Option<bool>,
     state: tauri::State<'_, std::sync::Arc<std::sync::Mutex<AsrClient>>>,
 ) -> Result<TranscriptionResult, String> {
-    let mut client = state.lock().map_err(|e| e.to_string())?;
+    let client = {
+        let mut client = state.lock().map_err(|e| e.to_string())?;
 
-    if let Some(m) = model {
-        client.set_model(m);
-    }
-    if let Some(p) = polish {
-        client.set_polish(p);
-    }
+        if let Some(m) = model {
+            client.set_model(m);
+        }
+        if let Some(p) = polish {
+            client.set_polish(p);
+        }
+
+        AsrClient::new(client.model.clone(), client.polish)
+    };
 
     let path = Path::new(&audio_path);
-    client.transcribe(path)
+    client.transcribe(path).await
 }
 
 #[tauri::command]

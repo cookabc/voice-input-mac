@@ -14,6 +14,7 @@ const state = {
     currentAudioPath: null,
     settings: null,
     history: [],
+    health: null,
 };
 
 // DOM Elements
@@ -88,6 +89,11 @@ async function listenCmd(event, handler) {
 
 // Recording Functions
 async function startRecording() {
+    if (state.health && !state.health.ready) {
+        if (elements.statusText) elements.statusText.textContent = state.health.issues.join(' ');
+        return;
+    }
+
     try {
         const audioPath = await invokeCmd('start_recording');
 
@@ -186,7 +192,31 @@ async function pasteTranscription(text) {
             useApplescript: state.settings?.useApplescript,
         });
     } catch (error) {
-        // Silently fail for paste errors
+        if (elements.statusText) {
+            elements.statusText.textContent = 'Text copied, but auto-paste failed';
+        }
+    }
+}
+
+async function loadRuntimeHealth() {
+    try {
+        state.health = await invokeCmd('get_runtime_health');
+
+        if (elements.recordBtn) {
+            elements.recordBtn.disabled = !state.health?.ready;
+        }
+
+        if (elements.statusText && state.health) {
+            if (state.health.ready) {
+                elements.statusText.textContent = 'Ready';
+                elements.statusText.style.color = '';
+            } else {
+                elements.statusText.textContent = state.health.issues.join(' ');
+                elements.statusText.style.color = '#ff4a4a';
+            }
+        }
+    } catch (error) {
+        state.health = null;
     }
 }
 
@@ -205,7 +235,11 @@ function resetRecordingUI() {
     hideElement(elements.stopBtn);
     hideElement(elements.resultSection);
     showElement(elements.tabsSection);
-    if (elements.statusText) elements.statusText.textContent = 'Ready';
+    if (elements.statusText) {
+        elements.statusText.textContent = state.health?.ready === false
+            ? state.health.issues.join(' ')
+            : 'Ready';
+    }
 }
 
 async function addHistoryEntry(text, lang, duration) {
@@ -451,9 +485,11 @@ async function init() {
             elements.statusText.textContent = 'Tauri API not available';
             elements.statusText.style.color = '#ff4a4a';
         } else {
-            elements.statusText.textContent = 'Ready';
+            elements.statusText.textContent = 'Checking dependencies...';
         }
     }
+
+    await loadRuntimeHealth();
 
     // Load settings
     await loadSettings();

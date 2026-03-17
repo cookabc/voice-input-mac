@@ -4,6 +4,7 @@
 mod audio;
 mod asr;
 mod clipboard;
+mod health;
 mod hotkey;
 mod settings;
 
@@ -54,6 +55,7 @@ pub fn run() {
             // ASR commands
             asr::transcribe_audio,
             asr::check_coli_available,
+            health::get_runtime_health,
             // Clipboard commands
             clipboard::paste_transcription,
             clipboard::copy_to_clipboard_cmd,

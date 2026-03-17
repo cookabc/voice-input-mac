@@ -77,10 +77,10 @@ pub fn paste_text_applescript(text: &str) -> Result<(), String> {
 
     let script = format!(
         r#"
-        set theClipboard to "{}"
+        set the clipboard to "{}"
         tell application "System Events"
             keystroke "v" using command down
-        end try
+        end tell
         "#,
         escaped_text
     );

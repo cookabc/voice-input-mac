@@ -5,6 +5,7 @@ use std::fs;
 use std::sync::Mutex;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AppSettings {
     pub hotkey: String,
     pub model: String,
