@@ -13,7 +13,7 @@ use asr::AsrClient;
 use hotkey::HotkeyManager;
 use settings::SettingsManager;
 use std::sync::Arc;
-use tauri::{Emitter, Manager};
+use tauri::{Emitter, Listener, Manager};
 use tauri_plugin_global_shortcut::ShortcutState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -35,7 +35,7 @@ pub fn run() {
                 })
                 .build(),
         )
-        .setup(|app| {
+        .setup(move |app| {
             // Initialize state
             app.manage(AudioRecorder::new());
             app.manage(Arc::new(std::sync::Mutex::new(AsrClient::default())));
@@ -50,7 +50,7 @@ pub fn run() {
 
             let window = app.get_webview_window("main").ok_or("Main window is missing")?;
             let app_handle_for_hotkey = app.handle().clone();
-            app.listen_global("hotkey-pressed", move |_| {
+            app.listen("hotkey-pressed", move |_| {
                 eprintln!("Hotkey pressed, toggling recording state");
 
                 if let Some(window) = app_handle_for_hotkey.get_webview_window("main") {

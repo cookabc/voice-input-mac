@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::process::Command as StdCommand;
 use std::sync::Mutex;
 use std::time::Duration;
 use tokio::process::Command;
@@ -96,7 +97,7 @@ impl AsrClient {
     }
 
     pub fn check_availability() -> bool {
-        Command::new("coli")
+        StdCommand::new("coli")
             .arg("--version")
             .output()
             .map(|o| o.status.success())

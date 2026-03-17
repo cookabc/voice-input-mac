@@ -77,7 +77,7 @@ impl HotkeyManager {
             }
         }
 
-        match app_handle.global_shortcut().register(&normalized) {
+        match app_handle.global_shortcut().register(normalized.as_str()) {
             Ok(_) => {
                 self.current_hotkey = Some(normalized.clone());
                 eprintln!("Hotkey registered: {}", normalized);
@@ -85,7 +85,7 @@ impl HotkeyManager {
             }
             Err(e) => {
                 if let Some(existing) = previous {
-                    let _ = app_handle.global_shortcut().register(&existing);
+                    let _ = app_handle.global_shortcut().register(existing.as_str());
                     self.current_hotkey = Some(existing);
                 }
 
