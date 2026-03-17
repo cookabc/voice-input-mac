@@ -1,12 +1,10 @@
 // Voice Input App - Frontend Logic
 'use strict';
 
-// Check Tauri 2 API availability - try different possible paths
 const Tauri = window.__TAURI__;
 const invoke = Tauri?.core?.invoke || Tauri?.invoke || window.__TAURI_INVOKE__;
 const listen = Tauri?.event?.listen || Tauri?.listen || window.__TAURI_EVENT__?.listen;
 
-// App State
 const state = {
     isRecording: false,
     recordingStart: null,
@@ -17,11 +15,11 @@ const state = {
     health: null,
 };
 
-// DOM Elements
 const elements = {
     micIcon: document.getElementById('mic-icon'),
     waveform: document.getElementById('waveform'),
     statusText: document.getElementById('status-text'),
+    statusDetail: document.getElementById('status-detail'),
     timer: document.getElementById('timer'),
     recordBtn: document.getElementById('record-btn'),
     stopBtn: document.getElementById('stop-btn'),
@@ -43,9 +41,15 @@ const elements = {
     changeHotkeyBtn: document.getElementById('change-hotkey-btn'),
     historyList: document.getElementById('history-list'),
     clearHistoryBtn: document.getElementById('clear-history-btn'),
+    hotkeyPill: document.getElementById('hotkey-pill'),
+    runtimePill: document.getElementById('runtime-pill'),
+    openWorkflowBtn: document.getElementById('open-workflow-btn'),
+    openHistoryBtn: document.getElementById('open-history-btn'),
+    closeWorkspaceBtn: document.getElementById('close-workspace-btn'),
+    workspaceTitle: document.getElementById('workspace-title'),
+    workspaceEyebrow: document.getElementById('workspace-eyebrow'),
 };
 
-// Utility Functions
 function formatTime(seconds) {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -71,7 +75,6 @@ function hideElement(el) {
     el?.classList.add('hidden');
 }
 
-// Tauri Invoke Wrapper - Tauri 2
 async function invokeCmd(cmd, args = {}) {
     if (typeof invoke === 'function') {
         return await invoke(cmd, args);
@@ -79,7 +82,6 @@ async function invokeCmd(cmd, args = {}) {
     throw new Error('Tauri API not available');
 }
 
-// Tauri Listen Wrapper - Tauri 2
 async function listenCmd(event, handler) {
     if (typeof listen === 'function') {
         return await listen(event, handler);
@@ -87,10 +89,133 @@ async function listenCmd(event, handler) {
     return () => {};
 }
 
-// Recording Functions
+async function syncTrayState(title, isRecording = state.isRecording) {
+    if (typeof invoke !== 'function') {
+        return;
+    }
+
+    try {
+        await invokeCmd('update_tray_state', {
+            statusLabel: title,
+            isRecording,
+        });
+    } catch {
+        // Ignore tray sync failures so the capture flow stays responsive.
+    }
+}
+
+function setStatus(title, detail = '', tone = 'default') {
+    if (elements.statusText) {
+        elements.statusText.textContent = title;
+        elements.statusText.dataset.tone = tone;
+    }
+
+    if (elements.statusDetail) {
+        elements.statusDetail.textContent = detail;
+    }
+
+    void syncTrayState(title, state.isRecording);
+}
+
+function setRuntimePill(label, stateName = 'neutral') {
+    if (!elements.runtimePill) {
+        return;
+    }
+
+    elements.runtimePill.textContent = label;
+    elements.runtimePill.dataset.state = stateName;
+}
+
+function syncHotkeyPreview() {
+    const value = elements.hotkey?.value || state.settings?.hotkey || 'Cmd+Shift+V';
+    if (elements.hotkeyPill) {
+        elements.hotkeyPill.textContent = value;
+    }
+}
+
+function setActiveTab(targetTab) {
+    elements.tabs.forEach((tab) => {
+        tab.classList.toggle('active', tab.dataset.tab === targetTab);
+    });
+
+    elements.tabContents.forEach((content) => {
+        content.classList.toggle('active', content.id === `${targetTab}-tab`);
+    });
+
+    if (elements.workspaceTitle && elements.workspaceEyebrow) {
+        if (targetTab === 'history') {
+            elements.workspaceEyebrow.textContent = 'History';
+            elements.workspaceTitle.textContent = 'Reuse past transcripts';
+        } else {
+            elements.workspaceEyebrow.textContent = 'Workflow';
+            elements.workspaceTitle.textContent = 'Tune the capture flow';
+        }
+    }
+}
+
+function openWorkspace(targetTab = 'settings') {
+    showElement(elements.tabsSection);
+    setActiveTab(targetTab);
+}
+
+function closeWorkspace() {
+    hideElement(elements.tabsSection);
+}
+
+function hasTranscript() {
+    return Boolean(elements.resultText?.textContent?.trim());
+}
+
+function applyIdleStatus() {
+    if (state.isRecording) {
+        return;
+    }
+
+    if (state.health?.ready === false) {
+        setStatus('Setup needed', state.health.issues.join(' '), 'danger');
+        setRuntimePill('Setup required', 'warning');
+        return;
+    }
+
+    if (hasTranscript()) {
+        setStatus(
+            'Transcript ready',
+            'Paste it into the current field, or trigger another capture to replace it.',
+            'success',
+        );
+        setRuntimePill('Transcript ready', 'ready');
+        return;
+    }
+
+    setStatus(
+        'Ready to dictate',
+        `Press ${state.settings?.hotkey || 'Cmd+Shift+V'} or use the capture button, then speak naturally.`,
+        'default',
+    );
+    setRuntimePill('Recorder ready', 'ready');
+}
+
+function updateRecorderControls() {
+    elements.recordBtn.disabled = state.health?.ready === false;
+    if (state.isRecording) {
+        elements.micIcon?.classList.add('recording');
+        showElement(elements.waveform);
+        showElement(elements.timer);
+        hideElement(elements.recordBtn);
+        showElement(elements.stopBtn);
+        return;
+    }
+
+    elements.micIcon?.classList.remove('recording');
+    hideElement(elements.waveform);
+    hideElement(elements.timer);
+    showElement(elements.recordBtn);
+    hideElement(elements.stopBtn);
+}
+
 async function startRecording() {
     if (state.health && !state.health.ready) {
-        if (elements.statusText) elements.statusText.textContent = state.health.issues.join(' ');
+        applyIdleStatus();
         return;
     }
 
@@ -101,53 +226,38 @@ async function startRecording() {
             state.isRecording = true;
             state.currentAudioPath = audioPath;
             state.recordingStart = Date.now();
-
-            // Update UI
-            elements.micIcon?.classList.add('recording');
-            showElement(elements.waveform);
-            showElement(elements.timer);
-            hideElement(elements.recordBtn);
-            showElement(elements.stopBtn);
-            if (elements.statusText) elements.statusText.textContent = 'Recording...';
-
-            // Start timer
+            updateRecorderControls();
+            setStatus('Listening now', 'Speak naturally. Trigger the hotkey again when you are done.', 'live');
+            setRuntimePill('Live capture', 'live');
             state.timerInterval = setInterval(updateTimer, 1000);
         }
     } catch (error) {
         console.error('Failed to start recording:', error);
-        if (elements.statusText) elements.statusText.textContent = 'Error: ' + error;
+        setStatus('Could not start capture', String(error), 'danger');
     }
 }
 
 async function stopRecording() {
     try {
-        console.log('Stopping recording...');
         await invokeCmd('stop_recording');
-        console.log('Recording stopped');
 
         state.isRecording = false;
 
-        // Stop timer
         if (state.timerInterval) {
             clearInterval(state.timerInterval);
             state.timerInterval = null;
         }
 
-        // Update UI
-        elements.micIcon?.classList.remove('recording');
-        hideElement(elements.waveform);
-        hideElement(elements.timer);
-        showElement(elements.recordBtn);
-        hideElement(elements.stopBtn);
-        if (elements.statusText) elements.statusText.textContent = 'Processing...';
+        updateRecorderControls();
+        setStatus('Transcribing locally', 'Running speech recognition with coli and preparing the transcript.', 'default');
+        setRuntimePill('Transcribing', 'neutral');
 
-        // Transcribe
         if (state.currentAudioPath) {
             await transcribeAudio(state.currentAudioPath);
         }
     } catch (error) {
         console.error('Failed to stop recording:', error);
-        if (elements.statusText) elements.statusText.textContent = 'Error: ' + error;
+        setStatus('Could not stop capture', String(error), 'danger');
         resetRecordingUI();
     }
 }
@@ -161,16 +271,11 @@ async function transcribeAudio(audioPath) {
         });
 
         if (result?.text) {
-            // Show result
             if (elements.resultText) elements.resultText.textContent = result.text;
             showElement(elements.resultSection);
-            hideElement(elements.tabsSection);
-            if (elements.statusText) elements.statusText.textContent = 'Done!';
-
-            // Add to history
+            setStatus('Transcript ready', 'Paste it into the current app or start another capture.', 'success');
             await addHistoryEntry(result.text, result.lang, result.duration);
 
-            // Auto paste if enabled
             if (state.settings?.autoPaste) {
                 await pasteTranscription(result.text);
             }
@@ -179,7 +284,7 @@ async function transcribeAudio(audioPath) {
         }
     } catch (error) {
         console.error('Transcription failed:', error);
-        if (elements.statusText) elements.statusText.textContent = 'Transcription failed: ' + error;
+        setStatus('Transcription failed', String(error), 'danger');
     } finally {
         state.currentAudioPath = null;
     }
@@ -191,32 +296,21 @@ async function pasteTranscription(text) {
             text,
             useApplescript: state.settings?.useApplescript,
         });
+        setStatus('Inserted into current app', 'The latest transcript was pasted into the active field.', 'success');
     } catch (error) {
-        if (elements.statusText) {
-            elements.statusText.textContent = 'Text copied, but auto-paste failed';
-        }
+        setStatus('Copied to clipboard', 'Auto-paste failed. Use the Paste button to try again manually.', 'danger');
     }
 }
 
 async function loadRuntimeHealth() {
     try {
         state.health = await invokeCmd('get_runtime_health');
-
-        if (elements.recordBtn) {
-            elements.recordBtn.disabled = !state.health?.ready;
-        }
-
-        if (elements.statusText && state.health) {
-            if (state.health.ready) {
-                elements.statusText.textContent = 'Ready';
-                elements.statusText.style.color = '';
-            } else {
-                elements.statusText.textContent = state.health.issues.join(' ');
-                elements.statusText.style.color = '#ff4a4a';
-            }
-        }
+        updateRecorderControls();
+        applyIdleStatus();
     } catch (error) {
         state.health = null;
+        setStatus('Health check unavailable', 'Could not inspect runtime dependencies in this session.', 'danger');
+        setRuntimePill('Runtime unknown', 'warning');
     }
 }
 
@@ -228,18 +322,9 @@ function updateTimer() {
 }
 
 function resetRecordingUI() {
-    elements.micIcon?.classList.remove('recording');
-    hideElement(elements.waveform);
-    hideElement(elements.timer);
-    showElement(elements.recordBtn);
-    hideElement(elements.stopBtn);
-    hideElement(elements.resultSection);
-    showElement(elements.tabsSection);
-    if (elements.statusText) {
-        elements.statusText.textContent = state.health?.ready === false
-            ? state.health.issues.join(' ')
-            : 'Ready';
-    }
+    state.isRecording = false;
+    updateRecorderControls();
+    applyIdleStatus();
 }
 
 async function addHistoryEntry(text, lang, duration) {
@@ -283,12 +368,12 @@ function renderHistory() {
             <div class="history-item-text">${escapeHtml(entry.text)}</div>
             <div class="history-item-meta">
                 <span>${formatDate(entry.timestamp)}</span>
-                <span>${entry.lang || 'unknown'}</span>
+                <span>${escapeHtml(entry.lang || 'unknown')}</span>
             </div>
             <div class="history-item-actions">
-                <button class="btn btn-small" onclick="copyHistoryItem('${entry.id}')">Copy</button>
-                <button class="btn btn-small btn-secondary" onclick="pasteHistoryItem('${entry.id}')">Paste</button>
-                <button class="btn btn-small btn-danger" onclick="deleteHistoryItem('${entry.id}')">Delete</button>
+                <button class="btn btn-small" data-action="copy" data-id="${entry.id}">Copy</button>
+                <button class="btn btn-small btn-secondary" data-action="paste" data-id="${entry.id}">Paste</button>
+                <button class="btn btn-small btn-danger" data-action="delete" data-id="${entry.id}">Delete</button>
             </div>
         </div>
     `).join('');
@@ -343,6 +428,7 @@ async function loadSettings() {
             useApplescript: true,
             historyCount: 50,
         };
+        updateSettingsUI();
     }
 }
 
@@ -355,6 +441,7 @@ function updateSettingsUI() {
     if (elements.autoPaste) elements.autoPaste.checked = state.settings.autoPaste;
     if (elements.useApplescript) elements.useApplescript.checked = state.settings.useApplescript;
     if (elements.historyCount) elements.historyCount.value = state.settings.historyCount;
+    syncHotkeyPreview();
 }
 
 async function saveSettings() {
@@ -374,6 +461,7 @@ async function saveSettings() {
         if (elements.hotkey) {
             elements.hotkey.value = newSettings.hotkey;
         }
+        syncHotkeyPreview();
         showSaveNotification();
     } catch (error) {
         console.error('Failed to save settings:', error);
@@ -382,42 +470,27 @@ async function saveSettings() {
 }
 
 function showSaveNotification() {
-    if (elements.statusText) {
-        const originalText = elements.statusText.textContent;
-        elements.statusText.textContent = 'Settings saved!';
-        elements.statusText.style.color = '#4ade80';
-        setTimeout(() => {
-            elements.statusText.textContent = originalText;
-            elements.statusText.style.color = '';
-        }, 2000);
-    }
+    setStatus('Settings saved', 'Your trigger and insertion workflow have been updated.', 'success');
+    window.setTimeout(applyIdleStatus, 2200);
 }
 
-function showSaveError(error) {
-    if (elements.statusText) {
-        const originalText = elements.statusText.textContent;
-        elements.statusText.textContent = 'Failed to save settings';
-        elements.statusText.style.color = '#ff4a4a';
-        setTimeout(() => {
-            elements.statusText.textContent = originalText;
-            elements.statusText.style.color = '';
-        }, 2000);
-    }
+function showSaveError() {
+    setStatus('Could not save settings', 'The hotkey or workflow configuration was rejected.', 'danger');
+    window.setTimeout(applyIdleStatus, 2200);
 }
 
-// Event Handlers
 function setupEventListeners() {
-    // Recording buttons
     elements.recordBtn?.addEventListener('click', startRecording);
     elements.stopBtn?.addEventListener('click', stopRecording);
 
-    // Result buttons
     elements.copyResultBtn?.addEventListener('click', async () => {
         const text = elements.resultText?.textContent || '';
         try {
             await invokeCmd('copy_to_clipboard_cmd', { text });
+            setStatus('Copied transcript', 'The latest transcript is now in your clipboard.', 'success');
         } catch (error) {
             console.error('Copy failed:', error);
+            setStatus('Copy failed', String(error), 'danger');
         }
     });
 
@@ -427,21 +500,23 @@ function setupEventListeners() {
     });
 
     elements.newRecordingBtn?.addEventListener('click', () => {
-        resetRecordingUI();
+        if (elements.resultText) {
+            elements.resultText.textContent = '';
+        }
+        hideElement(elements.resultSection);
+        applyIdleStatus();
     });
 
-    // Tabs
     elements.tabs.forEach(tab => {
         tab.addEventListener('click', () => {
-            const targetTab = tab.dataset.tab;
-            elements.tabs.forEach(t => t.classList.remove('active'));
-            elements.tabContents.forEach(c => c.classList.remove('active'));
-            tab.classList.add('active');
-            document.getElementById(`${targetTab}-tab`)?.classList.add('active');
+            setActiveTab(tab.dataset.tab || 'settings');
         });
     });
 
-    // Settings
+    elements.openWorkflowBtn?.addEventListener('click', () => openWorkspace('settings'));
+    elements.openHistoryBtn?.addEventListener('click', () => openWorkspace('history'));
+    elements.closeWorkspaceBtn?.addEventListener('click', closeWorkspace);
+
     elements.saveSettingsBtn?.addEventListener('click', saveSettings);
 
     elements.changeHotkeyBtn?.addEventListener('click', () => {
@@ -453,10 +528,10 @@ function setupEventListeners() {
 
         if (nextValue && elements.hotkey) {
             elements.hotkey.value = nextValue.trim();
+            syncHotkeyPreview();
         }
     });
 
-    // History
     elements.clearHistoryBtn?.addEventListener('click', async () => {
         if (confirm('Clear all history?')) {
             try {
@@ -467,11 +542,25 @@ function setupEventListeners() {
             }
         }
     });
+
+    elements.historyList?.addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-action]');
+        if (!button) return;
+
+        const { action, id } = button.dataset;
+        if (!id) return;
+
+        if (action === 'copy') {
+            await copyHistoryItem(id);
+        } else if (action === 'paste') {
+            await pasteHistoryItem(id);
+        } else if (action === 'delete') {
+            await deleteHistoryItem(id);
+        }
+    });
 }
 
-// Listen for global events
 async function setupGlobalListeners() {
-    // Hotkey pressed event
     await listenCmd('hotkey-pressed', () => {
         if (state.isRecording) {
             stopRecording();
@@ -480,7 +569,6 @@ async function setupGlobalListeners() {
         }
     });
 
-    // Toggle recording event
     await listenCmd('toggle-recording', () => {
         if (state.isRecording) {
             stopRecording();
@@ -488,36 +576,34 @@ async function setupGlobalListeners() {
             startRecording();
         }
     });
+
+    await listenCmd('open-preferences', () => {
+        openWorkspace('settings');
+    });
+
+    await listenCmd('open-history', () => {
+        openWorkspace('history');
+    });
 }
 
-// Initialize App
 async function init() {
-    // Show API status in UI
     if (elements.statusText) {
         if (typeof invoke !== 'function') {
-            elements.statusText.textContent = 'Tauri API not available';
-            elements.statusText.style.color = '#ff4a4a';
+            setStatus('Tauri unavailable', 'The frontend was opened without the desktop runtime APIs.', 'danger');
         } else {
-            elements.statusText.textContent = 'Checking dependencies...';
+            setStatus('Checking runtime', 'Inspecting recorder, speech recognition, and paste services.', 'default');
         }
     }
 
-    await loadRuntimeHealth();
-
-    // Load settings
     await loadSettings();
-
-    // Load history
+    await loadRuntimeHealth();
     await loadHistory();
-
-    // Setup event listeners
     setupEventListeners();
-
-    // Setup global listeners
     await setupGlobalListeners();
+    updateRecorderControls();
+    applyIdleStatus();
 }
 
-// Start app when DOM is ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {

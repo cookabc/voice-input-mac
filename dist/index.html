@@ -8,42 +8,73 @@
 </head>
 <body>
     <div id="app">
-        <div class="container">
-            <!-- Recording Section -->
-            <div id="recording-section" class="recording-section">
-                <div class="status-icon">
-                    <svg id="mic-icon" class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M19 10v2a7 7 0 0 1-14 0v-2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        <line x1="12" y1="19" x2="12" y2="23" stroke-width="2" stroke-linecap="round"/>
-                        <line x1="8" y1="23" x2="16" y2="23" stroke-width="2" stroke-linecap="round"/>
-                    </svg>
+        <div class="shell">
+            <header class="app-bar compact-bar">
+                <div class="brand-lockup">
+                    <span class="brand-pulse"></span>
+                    <div>
+                        <p class="eyebrow">Menu bar dictation</p>
+                        <h1>Voice Input</h1>
+                    </div>
+                </div>
+                <div id="hotkey-pill" class="hotkey-pill">Cmd+Shift+V</div>
+            </header>
+
+            <section class="hero-panel compact-hero">
+                <div class="hero-copy">
+                    <p class="hero-label">Ready anywhere</p>
+                    <h2 id="status-text" class="status-text" data-tone="default">Ready to dictate</h2>
+                    <p id="status-detail" class="status-detail">Press the hotkey or use the capture button, then speak naturally.</p>
                 </div>
 
-                <div id="waveform" class="waveform hidden">
-                    <div class="wave"></div>
-                    <div class="wave"></div>
-                    <div class="wave"></div>
-                    <div class="wave"></div>
-                    <div class="wave"></div>
+                <div class="capture-panel">
+                    <div class="mic-stage">
+                        <div class="mic-halo"></div>
+                        <div class="mic-disc">
+                            <svg id="mic-icon" class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M19 10v2a7 7 0 0 1-14 0v-2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <line x1="12" y1="19" x2="12" y2="23" stroke-width="2" stroke-linecap="round"/>
+                                <line x1="8" y1="23" x2="16" y2="23" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                        </div>
+                        <div id="waveform" class="waveform hidden" aria-hidden="true">
+                            <div class="wave"></div>
+                            <div class="wave"></div>
+                            <div class="wave"></div>
+                            <div class="wave"></div>
+                            <div class="wave"></div>
+                        </div>
+                    </div>
+
+                    <div id="timer" class="timer-pill hidden">00:00</div>
+
+                    <div class="primary-actions">
+                        <button id="record-btn" class="cta-button">
+                            <span>Start Listening</span>
+                        </button>
+                        <button id="stop-btn" class="cta-button cta-stop hidden">
+                            <span>Stop And Transcribe</span>
+                        </button>
+                    </div>
                 </div>
 
-                <div id="status-text" class="status-text">Ready</div>
-                <div id="timer" class="timer hidden">00:00</div>
+                <div class="runtime-strip">
+                    <div id="runtime-pill" class="runtime-pill" data-state="neutral">Checking runtime</div>
+                    <div class="mini-actions">
+                        <button id="open-workflow-btn" class="mini-action" type="button">Settings</button>
+                        <button id="open-history-btn" class="mini-action" type="button">History</button>
+                    </div>
+                </div>
+            </section>
 
-                <button id="record-btn" class="btn btn-primary">
-                    <span>Start Recording</span>
-                </button>
-                <button id="stop-btn" class="btn btn-danger hidden">
-                    <span>Stop Recording</span>
-                </button>
-            </div>
-
-            <!-- Result Section -->
-            <div id="result-section" class="result-section hidden">
+            <section id="result-section" class="transcript-panel hidden">
                 <div class="section-header">
-                    <h3>Transcription</h3>
-                    <button id="copy-result-btn" class="btn-icon" title="Copy">
+                    <div>
+                        <p class="eyebrow">Latest transcript</p>
+                        <h3>Insert or refine</h3>
+                    </div>
+                    <button id="copy-result-btn" class="btn-icon" title="Copy transcript">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                             <rect x="9" y="9" width="13" height="13" rx="2" ry="2" stroke-width="2"/>
                             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke-width="2"/>
@@ -52,74 +83,94 @@
                 </div>
                 <div id="result-text" class="result-text"></div>
                 <div class="result-actions">
-                    <button id="paste-btn" class="btn btn-small">Paste</button>
-                    <button id="new-recording-btn" class="btn btn-small btn-secondary">New Recording</button>
+                    <button id="paste-btn" class="btn btn-small btn-primary">Paste Into Current App</button>
+                    <button id="new-recording-btn" class="btn btn-small btn-secondary">New Capture</button>
                 </div>
-            </div>
+            </section>
 
-            <!-- Tabs Section -->
-            <div id="tabs-section" class="tabs-section">
-                <div class="tabs">
-                    <button class="tab active" data-tab="settings">Settings</button>
+            <section id="tabs-section" class="workspace-panel hidden">
+                <div class="workspace-header">
+                    <div>
+                        <p id="workspace-eyebrow" class="eyebrow">Workflow</p>
+                        <h3 id="workspace-title">Tune the capture flow</h3>
+                    </div>
+                    <button id="close-workspace-btn" class="btn-icon" title="Close panel">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M18 6L6 18" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M6 6l12 12" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="tabs compact-tabs">
+                    <button class="tab active" data-tab="settings">Workflow</button>
                     <button class="tab" data-tab="history">History</button>
                 </div>
 
-                <!-- Settings Tab -->
                 <div id="settings-tab" class="tab-content active">
-                    <div class="setting-item">
-                        <label for="hotkey">Global Hotkey</label>
-                        <input type="text" id="hotkey" value="Cmd+Shift+V" readonly>
-                        <button id="change-hotkey-btn" class="btn btn-small">Change</button>
-                    </div>
+                    <div class="settings-grid">
+                        <label class="field field-span-2" for="hotkey">
+                            <span>Global trigger</span>
+                            <div class="field-inline">
+                                <input type="text" id="hotkey" value="Cmd+Shift+V" readonly>
+                                <button id="change-hotkey-btn" class="btn btn-small btn-secondary">Change</button>
+                            </div>
+                        </label>
 
-                    <div class="setting-item">
-                        <label for="model">ASR Model</label>
-                        <select id="model">
-                            <option value="sensevoice">SenseVoice</option>
-                            <option value="whisper">Whisper</option>
-                        </select>
-                    </div>
+                        <label class="field" for="model">
+                            <span>Recognition model</span>
+                            <select id="model">
+                                <option value="sensevoice">SenseVoice</option>
+                                <option value="whisper">Whisper</option>
+                            </select>
+                        </label>
 
-                    <div class="setting-item">
-                        <label>
+                        <label class="field" for="history-count">
+                            <span>Saved transcript count</span>
+                            <input type="number" id="history-count" value="50" min="10" max="500">
+                        </label>
+
+                        <label class="toggle-row field-span-2">
                             <input type="checkbox" id="polish" checked>
-                            <span>AI Polish (remove filler words, fix punctuation)</span>
+                            <span>
+                                <strong>Polish transcript</strong>
+                                <small>Remove filler words and clean punctuation before insertion.</small>
+                            </span>
                         </label>
-                    </div>
 
-                    <div class="setting-item">
-                        <label>
+                        <label class="toggle-row field-span-2">
                             <input type="checkbox" id="auto-paste" checked>
-                            <span>Auto-paste after transcription</span>
+                            <span>
+                                <strong>Auto-paste after recognition</strong>
+                                <small>Insert the latest transcript into the active field immediately.</small>
+                            </span>
                         </label>
-                    </div>
 
-                    <div class="setting-item">
-                        <label>
+                        <label class="toggle-row field-span-2">
                             <input type="checkbox" id="use-applescript" checked>
-                            <span>Use AppleScript for paste (more reliable)</span>
+                            <span>
+                                <strong>Use AppleScript paste</strong>
+                                <small>Prefer simulated paste for apps that ignore plain clipboard updates.</small>
+                            </span>
                         </label>
-                    </div>
 
-                    <div class="setting-item">
-                        <label for="history-count">History Count</label>
-                        <input type="number" id="history-count" value="50" min="10" max="500">
+                        <button id="save-settings-btn" class="save-button field-span-2">Save Workflow Settings</button>
                     </div>
-
-                    <button id="save-settings-btn" class="btn btn-primary">Save Settings</button>
                 </div>
 
-                <!-- History Tab -->
                 <div id="history-tab" class="tab-content">
                     <div class="history-header">
-                        <span>Recent Transcriptions</span>
+                        <div>
+                            <p class="eyebrow">Recent captures</p>
+                            <h3>Reuse past text</h3>
+                        </div>
                         <button id="clear-history-btn" class="btn btn-small btn-danger">Clear All</button>
                     </div>
                     <div id="history-list" class="history-list">
                         <div class="history-empty">No history yet</div>
                     </div>
                 </div>
-            </div>
+            </section>
         </div>
     </div>
 

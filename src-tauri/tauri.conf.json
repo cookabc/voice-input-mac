@@ -6,8 +6,8 @@
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
-    "beforeDevCommand": "cd .. && npm run dev",
-    "beforeBuildCommand": "cd .. && npm run build"
+    "beforeDevCommand": "node /Users/advance/Documents/voice-input-mac/scripts/dev-frontend.mjs",
+    "beforeBuildCommand": "node /Users/advance/Documents/voice-input-mac/scripts/build-frontend.mjs"
   },
   "app": {
     "withGlobalTauri": true,
@@ -15,12 +15,12 @@
       {
         "title": "Voice Input",
         "label": "main",
-        "width": 400,
-        "height": 520,
+        "width": 392,
+        "height": 560,
         "resizable": false,
-        "hiddenTitle": false,
-        "titleBarStyle": "Visible",
-        "skipTaskbar": false,
+        "hiddenTitle": true,
+        "titleBarStyle": "Overlay",
+        "skipTaskbar": true,
         "visible": true,
         "decorations": true,
         "transparent": false,
