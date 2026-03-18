@@ -27,14 +27,14 @@ final class PanelController {
         panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         panel.becomesKeyOnlyIfNeeded = false
         panel.contentView = hosting
-        viewModel.onRequestDismiss = { [weak panel] in
-            panel?.orderOut(nil)
+        viewModel.onRequestDismiss = { [weak self] in
+            self?.animatedClose()
         }
     }
 
     func togglePanel(relativeTo button: NSStatusBarButton?) {
         if panel.isVisible {
-            panel.orderOut(nil)
+            animatedClose()
         } else {
             showPanel(relativeTo: button)
         }
@@ -42,9 +42,24 @@ final class PanelController {
 
     func showPanel(relativeTo button: NSStatusBarButton?) {
         positionPanel(relativeTo: button)
+        panel.alphaValue = 0
         panel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.15
+            panel.animator().alphaValue = 1
+        }
         refreshRustStatus()
+    }
+
+    private func animatedClose() {
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = 0.10
+            panel.animator().alphaValue = 0
+        }) { [weak panel] in
+            panel?.orderOut(nil)
+            panel?.alphaValue = 1
+        }
     }
 
     func refreshRustStatus() {

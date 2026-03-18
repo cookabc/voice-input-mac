@@ -8,6 +8,7 @@ APP_DIR="$SCRIPT_DIR/../.stage/VoiceInputShell.app"
 
 pkill -f 'VoiceInputShell.app/Contents/MacOS/VoiceInputShell' >/dev/null 2>&1 || true
 pkill -f 'arm64-apple-macosx/debug/VoiceInputShell' >/dev/null 2>&1 || true
+sleep 0.4   # give macOS time to reclaim the process slot before relaunching
 
 open "$APP_DIR"
 
