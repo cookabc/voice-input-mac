@@ -16,8 +16,12 @@ enum AppPaths {
             }
         }
 
-        let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
+        let executableURL = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL
+        let executableDirectory = executableURL.deletingLastPathComponent()
         let candidates = [
+            executableDirectory.appendingPathComponent("../../../../../voice-core/target/debug/libvoice_input_core.dylib"),
+            executableDirectory.appendingPathComponent("../../../voice-core/target/debug/libvoice_input_core.dylib"),
             cwd.appendingPathComponent("../../voice-core/target/debug/libvoice_input_core.dylib"),
             cwd.appendingPathComponent("voice-core/target/debug/libvoice_input_core.dylib"),
         ]

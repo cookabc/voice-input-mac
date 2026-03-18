@@ -33,16 +33,42 @@ struct ShellPanelView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Label(viewModel.ffmpegLine, systemImage: "waveform")
                 Label(viewModel.coliLine, systemImage: "text.bubble")
+                Label("Recording: \(viewModel.recordingLine)", systemImage: "mic")
             }
             .font(.system(size: 13, weight: .medium, design: .rounded))
+
+            if !viewModel.recordingPath.isEmpty {
+                Text(viewModel.recordingPath)
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+            }
+
+            if !viewModel.actionError.isEmpty {
+                Text(viewModel.actionError)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color(red: 1.0, green: 0.78, blue: 0.76))
+                    .padding(12)
+                    .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
 
             Spacer()
 
             HStack(spacing: 10) {
+                Button("Start Recording") {
+                    viewModel.startRecording()
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button("Stop") {
+                    viewModel.stopRecording()
+                }
+                .buttonStyle(.bordered)
+
                 Button("Refresh Rust Core") {
                     viewModel.refreshRuntime()
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
 
                 Button("Open Migration Notes") {
                     NSWorkspace.shared.open(URL(fileURLWithPath: FileManager.default.currentDirectoryPath))

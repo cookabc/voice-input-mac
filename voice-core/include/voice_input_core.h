@@ -10,6 +10,10 @@ extern "C" {
 char *voice_input_core_version(void);
 bool voice_input_core_configure_tools(const char *ffmpeg_path, const char *coli_path);
 char *voice_input_core_smoke_status_json(void);
+char *voice_input_core_last_error_message(void);
+char *voice_input_core_start_recording(void);
+bool voice_input_core_stop_recording(void);
+bool voice_input_core_is_recording(void);
 void voice_input_core_string_free(char *value);
 
 #ifdef __cplusplus
