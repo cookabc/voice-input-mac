@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 
 @MainActor
@@ -17,6 +18,8 @@ final class ShellViewModel: ObservableObject {
     @Published var transcriptMeta = ""
     @Published var diagnosticsExpanded = false
     @Published var isTranscribing = false
+    @Published var isPlayingClip = false
+    private var audioPlayer: AVAudioPlayer?
 
     var isReady: Bool {
         runtimeBadge == "Ready"
@@ -96,6 +99,8 @@ final class ShellViewModel: ObservableObject {
             actionError = isReady ? "Recording is already running." : "Runtime is not ready for recording yet."
             return
         }
+
+        stopClipPlayback()
 
         do {
             let path = try RustCoreBridge.bridge().startRecording()
@@ -178,13 +183,54 @@ final class ShellViewModel: ObservableObject {
             return
         }
 
-        do {
-            try TextInsertionService.pasteToFrontmostApp(transcriptText)
-            actionError = ""
-            onRequestDismiss?()
-        } catch {
-            actionError = error.localizedDescription
+        TextInsertionService.copyToClipboard(transcriptText)
+
+        guard TextInsertionService.isAccessibilityTrusted() else {
+            TextInsertionService.promptAccessibility()
+            actionError = "Copied to clipboard. Grant Accessibility access in System Settings to enable auto-paste."
+            return
         }
+
+        actionError = ""
+        onRequestDismiss?()
+
+        Task {
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            try? TextInsertionService.simulatePaste()
+        }
+    }
+
+    func toggleClipPlayback() {
+        if isPlayingClip {
+            stopClipPlayback()
+        } else {
+            guard !recordingPath.isEmpty else { return }
+            do {
+                let url = URL(fileURLWithPath: recordingPath)
+                audioPlayer = try AVAudioPlayer(contentsOf: url)
+                audioPlayer?.play()
+                isPlayingClip = true
+                let duration = audioPlayer?.duration ?? 0
+                Task { [weak self] in
+                    try? await Task.sleep(nanoseconds: UInt64((duration + 0.1) * 1_000_000_000))
+                    guard let self, self.isPlayingClip else { return }
+                    self.stopClipPlayback()
+                }
+            } catch {
+                actionError = "Could not play clip: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func stopClipPlayback() {
+        audioPlayer?.stop()
+        audioPlayer = nil
+        isPlayingClip = false
+    }
+
+    func clearTranscript() {
+        transcriptText = ""
+        transcriptMeta = ""
     }
 
     func toggleDiagnostics() {

@@ -124,43 +124,31 @@ struct ShellPanelView: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
 
-                VStack(alignment: .leading, spacing: 14) {
-                    Text(viewModel.primaryActionTitle)
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundStyle(panelText)
-
-                    Text(viewModel.primaryActionSubtitle)
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundStyle(panelMuted)
-
-                    Button {
-                        if viewModel.isRecordingActive {
-                            viewModel.stopRecording()
-                        } else {
-                            viewModel.startRecording()
-                        }
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: viewModel.isRecordingActive ? "stop.fill" : "mic.fill")
-                                .font(.system(size: 16, weight: .bold))
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(viewModel.isRecordingActive ? "Stop now" : "Start dictation")
-                                    .font(.system(size: 17, weight: .bold, design: .rounded))
-                                Text(viewModel.recordingLine)
-                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(panelText.opacity(0.84))
-                            }
-                            Spacer()
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 18)
+                Button {
+                    if viewModel.isRecordingActive {
+                        viewModel.stopRecording()
+                    } else {
+                        viewModel.startRecording()
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(heroTint)
-                    .disabled(!viewModel.canStartRecording && !viewModel.canStopRecording)
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: viewModel.isRecordingActive ? "stop.fill" : "mic.fill")
+                            .font(.system(size: 16, weight: .bold))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(viewModel.isRecordingActive ? "Stop now" : "Start dictation")
+                                .font(.system(size: 17, weight: .bold, design: .rounded))
+                            Text(viewModel.recordingLine)
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                .foregroundStyle(panelText.opacity(0.84))
+                        }
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
                 }
-                .padding(16)
-                .background(panelSurfaceStrong.opacity(0.94), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .buttonStyle(.borderedProminent)
+                .tint(heroTint)
+                .disabled(!viewModel.canStartRecording && !viewModel.canStopRecording)
 
                 if !viewModel.recordingPath.isEmpty {
                     HStack(spacing: 10) {
@@ -176,6 +164,16 @@ struct ShellPanelView: View {
                                 .foregroundStyle(panelMuted)
                         }
                         Spacer()
+                        Button {
+                            viewModel.toggleClipPlayback()
+                        } label: {
+                            Image(systemName: viewModel.isPlayingClip ? "stop.fill" : "play.fill")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(panelAccent)
+                                .frame(width: 32, height: 32)
+                                .background(panelAccent.opacity(0.15), in: Circle())
+                        }
+                        .buttonStyle(.plain)
                     }
                     .padding(14)
                     .background(panelSurface.opacity(0.88), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -193,9 +191,22 @@ struct ShellPanelView: View {
 
                 if !viewModel.transcriptText.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Transcript")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .foregroundStyle(panelMuted)
+                        HStack {
+                            Text("Transcript")
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .foregroundStyle(panelMuted)
+                            Spacer()
+                            Button {
+                                viewModel.clearTranscript()
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(panelMuted)
+                                    .frame(width: 20, height: 20)
+                                    .background((dark ? Color.white : Color.black).opacity(0.10), in: Circle())
+                            }
+                            .buttonStyle(.plain)
+                        }
 
                         Text(viewModel.transcriptText)
                             .font(.system(size: 14, weight: .medium, design: .rounded))
@@ -224,6 +235,7 @@ struct ShellPanelView: View {
                     }
                     .padding(16)
                     .background(panelSurfaceStrong.opacity(0.92), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .transition(.opacity.combined(with: .scale(scale: 0.97)))
                 }
 
                 VStack(spacing: 10) {
@@ -237,20 +249,13 @@ struct ShellPanelView: View {
                         }
                         .disabled(!viewModel.canTranscribe)
 
-                        actionButton(title: "Paste", systemImage: "arrow.up.doc.fill", prominent: true, tint: panelAccentSoft) {
-                            viewModel.pasteTranscript()
-                        }
-                        .disabled(!viewModel.canPasteTranscript)
-                    }
-
-                    HStack(spacing: 10) {
-                        actionButton(title: viewModel.diagnosticsExpanded ? "Hide status" : "Show status", systemImage: viewModel.diagnosticsExpanded ? "eye.slash" : "waveform.path.ecg", tint: panelAccentSoft) {
-                            viewModel.toggleDiagnostics()
-                        }
-
                         actionButton(title: "Refresh", systemImage: "arrow.clockwise", tint: panelAccentSoft) {
                             viewModel.refreshRuntime()
                         }
+                    }
+
+                    actionButton(title: viewModel.diagnosticsExpanded ? "Hide status" : "Show status", systemImage: viewModel.diagnosticsExpanded ? "eye.slash" : "waveform.path.ecg", tint: panelAccentSoft) {
+                        viewModel.toggleDiagnostics()
                     }
                 }
 
@@ -264,16 +269,11 @@ struct ShellPanelView: View {
                     }
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
-
-                if viewModel.diagnosticsExpanded {
-                    Text(viewModel.diagnosticsSummary)
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(panelMuted)
-                }
             }
             .animation(.easeOut(duration: 0.22), value: viewModel.isReady)
             .animation(.easeOut(duration: 0.18), value: viewModel.recordingPath)
             .animation(.easeOut(duration: 0.18), value: viewModel.diagnosticsExpanded)
+            .animation(.easeOut(duration: 0.18), value: viewModel.transcriptText.isEmpty)
             .padding(18)
             }  // end ScrollView
         }
