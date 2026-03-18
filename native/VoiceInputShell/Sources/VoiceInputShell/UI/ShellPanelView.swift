@@ -67,6 +67,18 @@ struct ShellPanelView: View {
                             .font(.system(size: 11, weight: .medium, design: .monospaced))
                             .foregroundStyle(.secondary)
                     }
+
+                    HStack(spacing: 10) {
+                        Button("Copy") {
+                            viewModel.copyTranscript()
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button("Paste") {
+                            viewModel.pasteTranscript()
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
                 }
                 .padding(14)
                 .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))

@@ -89,4 +89,30 @@ final class ShellViewModel: ObservableObject {
             actionError = error.localizedDescription
         }
     }
+
+    func copyTranscript() {
+        guard !transcriptText.isEmpty else {
+            actionError = "No transcript available to copy."
+            return
+        }
+
+        TextInsertionService.copyToClipboard(transcriptText)
+        actionError = ""
+        detail = "Transcript copied to the clipboard."
+    }
+
+    func pasteTranscript() {
+        guard !transcriptText.isEmpty else {
+            actionError = "No transcript available to paste."
+            return
+        }
+
+        do {
+            try TextInsertionService.pasteToFrontmostApp(transcriptText)
+            actionError = ""
+            detail = "Transcript pasted into the frontmost app."
+        } catch {
+            actionError = error.localizedDescription
+        }
+    }
 }
