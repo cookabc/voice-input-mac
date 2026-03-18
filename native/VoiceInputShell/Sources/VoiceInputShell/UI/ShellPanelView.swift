@@ -48,30 +48,41 @@ struct ShellPanelView: View {
                 .blur(radius: 24)
                 .offset(x: -140, y: 170)
 
+            ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .top, spacing: 14) {
-                    VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 6) {
                         Text("Voice Input")
-                            .font(.system(size: 26, weight: .bold, design: .rounded))
-                        Text("On-device dictation for the menu bar")
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                        Text("On-device dictation")
                             .font(.system(size: 12, weight: .medium, design: .rounded))
                             .foregroundStyle(panelMuted)
-                            .lineLimit(2)
                     }
 
                     Spacer()
 
-                    VStack(alignment: .trailing, spacing: 8) {
+                    VStack(alignment: .trailing, spacing: 6) {
                         Text(viewModel.runtimeBadge)
                             .font(.system(size: 11, weight: .bold, design: .rounded))
                             .foregroundStyle(badgeTint)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
                             .background(badgeTint.opacity(0.18), in: Capsule())
                         Text("Core \(viewModel.rustVersion)")
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
                             .foregroundStyle(panelMuted)
                     }
+
+                    Button {
+                        viewModel.onRequestDismiss?()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(panelMuted)
+                            .frame(width: 24, height: 24)
+                            .background(Color.white.opacity(0.10), in: Circle())
+                    }
+                    .buttonStyle(.plain)
                 }
 
                 if !viewModel.isReady {
@@ -192,8 +203,6 @@ struct ShellPanelView: View {
                     .background(panelSurfaceStrong.opacity(0.92), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                 }
 
-                Spacer(minLength: 0)
-
                 VStack(spacing: 10) {
                     HStack(spacing: 10) {
                         actionButton(
@@ -243,7 +252,9 @@ struct ShellPanelView: View {
             .animation(.easeOut(duration: 0.18), value: viewModel.recordingPath)
             .animation(.easeOut(duration: 0.18), value: viewModel.diagnosticsExpanded)
             .padding(18)
+            }  // end ScrollView
         }
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .frame(width: 408, height: 500)
         .foregroundStyle(panelText)
         .preferredColorScheme(.dark)
