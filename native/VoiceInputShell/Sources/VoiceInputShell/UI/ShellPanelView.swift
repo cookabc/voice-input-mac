@@ -255,10 +255,58 @@ struct ShellPanelView: View {
                                     }
                                     .buttonStyle(.borderedProminent)
                                     .tint(panelAccent)
+
+                                    Spacer()
+
+                                    Button {
+                                        viewModel.polishTranscript()
+                                    } label: {
+                                        Label(
+                                            viewModel.isPolishing ? "Polishing\u{2026}" : "\u{2736} Polish",
+                                            systemImage: viewModel.isPolishing ? "hourglass" : "sparkles"
+                                        )
+                                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .tint(Color(red: 0.62, green: 0.46, blue: 0.86))
+                                    .disabled(!viewModel.canPolish)
                                 }
                             }
                             .padding(16)
                             .background(panelSurfaceStrong.opacity(0.92), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                            .transition(.opacity.combined(with: .scale(scale: 0.97)))
+                        }
+
+                        if !viewModel.polishedText.isEmpty {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Label("Polished", systemImage: "sparkles")
+                                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                                    .foregroundStyle(Color(red: 0.72, green: 0.58, blue: 0.94))
+
+                                Text(viewModel.polishedText)
+                                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                                    .foregroundStyle(panelText)
+                                    .textSelection(.enabled)
+
+                                HStack(spacing: 10) {
+                                    Button("Copy") {
+                                        viewModel.copyPolished()
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .tint(panelAccentSoft)
+
+                                    Button("Paste") {
+                                        viewModel.pastePolished()
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(Color(red: 0.62, green: 0.46, blue: 0.86))
+                                }
+                            }
+                            .padding(16)
+                            .background(
+                                Color(red: 0.62, green: 0.46, blue: 0.86).opacity(dark ? 0.15 : 0.09),
+                                in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            )
                             .transition(.opacity.combined(with: .scale(scale: 0.97)))
                         }
 
@@ -281,6 +329,7 @@ struct ShellPanelView: View {
                     .animation(.easeOut(duration: 0.18), value: viewModel.recordingPath)
                     .animation(.easeOut(duration: 0.18), value: viewModel.liveTranscript.isEmpty)
                     .animation(.easeOut(duration: 0.18), value: viewModel.transcriptText.isEmpty)
+                    .animation(.easeOut(duration: 0.18), value: viewModel.polishedText.isEmpty)
                     .padding(.horizontal, 18)
                     .padding(.bottom, 12)
                 }

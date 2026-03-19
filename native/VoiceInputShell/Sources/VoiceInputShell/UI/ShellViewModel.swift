@@ -1,3 +1,4 @@
+import AppKit
 import AVFoundation
 import Foundation
 
@@ -18,6 +19,8 @@ final class ShellViewModel: ObservableObject {
     @Published var isTranscribing = false
     @Published var isPlayingClip = false
     @Published var liveTranscript = ""
+    @Published var isPolishing = false
+    @Published var polishedText = ""
     private var audioPlayer: AVAudioPlayer?
 
     private let core = VoiceCoreService()
@@ -28,6 +31,7 @@ final class ShellViewModel: ObservableObject {
     var canStopRecording: Bool { isRecordingActive }
     var canTranscribe: Bool { !recordingPath.isEmpty && !isRecordingActive && !isTranscribing }
     var canPasteTranscript: Bool { !transcriptText.isEmpty }
+    var canPolish: Bool { !transcriptText.isEmpty && !isPolishing && !isTranscribing }
 
     var statusFooter: String {
         coliLine.contains("ready") ? "✓ coli" : "✗ coli"
@@ -73,6 +77,7 @@ final class ShellViewModel: ObservableObject {
             transcriptText = ""
             transcriptMeta = ""
             liveTranscript = ""
+            polishedText = ""
         } catch {
             actionError = error.localizedDescription
             recordingLine = "Start failed"
@@ -188,6 +193,85 @@ final class ShellViewModel: ObservableObject {
     func clearTranscript() {
         transcriptText = ""
         transcriptMeta = ""
+        polishedText = ""
+    }
+
+    // MARK: - LLM Polish
+
+    func polishTranscript() {
+        guard canPolish else { return }
+
+        if LLMPolisher.shared.apiKey == nil {
+            promptForApiKey { [weak self] in self?.polishTranscript() }
+            return
+        }
+
+        isPolishing = true
+        actionError = ""
+        let text = transcriptText
+        let vm = self
+
+        Task.detached(priority: .userInitiated) {
+            do {
+                let polished = try await LLMPolisher.shared.polish(text: text)
+                await MainActor.run {
+                    vm.polishedText = polished
+                    vm.isPolishing = false
+                }
+            } catch {
+                await MainActor.run {
+                    vm.actionError = error.localizedDescription
+                    vm.isPolishing = false
+                }
+            }
+        }
+    }
+
+    func copyPolished() {
+        guard !polishedText.isEmpty else { return }
+        TextInsertionService.copyToClipboard(polishedText)
+        actionError = ""
+    }
+
+    func pastePolished() {
+        guard !polishedText.isEmpty else { return }
+
+        TextInsertionService.copyToClipboard(polishedText)
+
+        guard TextInsertionService.isAccessibilityTrusted() else {
+            TextInsertionService.promptAccessibility()
+            actionError = "Copied to clipboard. Grant Accessibility access in System Settings to enable auto-paste."
+            return
+        }
+
+        actionError = ""
+        onRequestDismiss?()
+
+        Task {
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            try? TextInsertionService.simulatePaste()
+        }
+    }
+
+    private func promptForApiKey(completion: @escaping () -> Void) {
+        let alert = NSAlert()
+        alert.messageText = "OpenAI API Key"
+        alert.informativeText = "Enter your API key to enable transcript polishing. It is stored locally and never sent anywhere except your chosen endpoint."
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 340, height: 24))
+        field.placeholderString = "sk-…"
+        field.usesSingleLineMode = true
+        field.stringValue = LLMPolisher.shared.apiKey ?? ""
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let key = field.stringValue.trimmingCharacters(in: .whitespaces)
+        guard !key.isEmpty else { return }
+        LLMPolisher.shared.saveApiKey(key)
+        completion()
     }
 
     private func statusLine(name: String, path: String, available: Bool) -> String {
