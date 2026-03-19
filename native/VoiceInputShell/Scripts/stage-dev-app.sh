@@ -4,7 +4,23 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
 SHELL_DIR="$ROOT_DIR/native/VoiceInputShell"
 CORE_DIR="$ROOT_DIR"
-BUILD_DIR="$SHELL_DIR/.build/arm64-apple-macosx/debug"
+
+RELEASE=false
+for arg in "$@"; do
+  [[ "$arg" == "--release" ]] && RELEASE=true
+done
+
+if $RELEASE; then
+  PROFILE=release
+  CARGO_FLAGS="--release"
+  SWIFT_FLAGS="-c release"
+else
+  PROFILE=debug
+  CARGO_FLAGS=""
+  SWIFT_FLAGS=""
+fi
+
+BUILD_DIR="$SHELL_DIR/.build/arm64-apple-macosx/$PROFILE"
 APP_DIR="$SHELL_DIR/.stage/VoiceInputShell.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
@@ -25,18 +41,20 @@ if [[ -z "$COLI_PATH" || ! -f "$COLI_PATH" ]]; then
 fi
 
 pushd "$CORE_DIR" >/dev/null
-cargo build
+# shellcheck disable=SC2086
+cargo build $CARGO_FLAGS
 popd >/dev/null
 
 pushd "$SHELL_DIR" >/dev/null
-swift build
+# shellcheck disable=SC2086
+swift build $SWIFT_FLAGS
 popd >/dev/null
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$FRAMEWORKS_DIR" "$HELPERS_DIR"
 
 cp "$BUILD_DIR/VoiceInputShell" "$MACOS_DIR/VoiceInputShell"
-cp "$CORE_DIR/target/debug/libvoice_input_core.dylib" "$FRAMEWORKS_DIR/libvoice_input_core.dylib"
+cp "$CORE_DIR/target/$PROFILE/libvoice_input_core.dylib" "$FRAMEWORKS_DIR/libvoice_input_core.dylib"
 cp "$FFMPEG_PATH" "$HELPERS_DIR/ffmpeg"
 cp "$COLI_PATH" "$HELPERS_DIR/coli"
 chmod +x "$MACOS_DIR/VoiceInputShell" "$HELPERS_DIR/ffmpeg" "$HELPERS_DIR/coli"

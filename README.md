@@ -30,6 +30,30 @@ pip install coli-asr
 bash native/VoiceInputShell/Scripts/run-dev-app.sh
 ```
 
+## Building a distributable app
+
+```bash
+# Build optimised release binaries and stage the .app bundle:
+bash native/VoiceInputShell/Scripts/stage-dev-app.sh --release
+```
+
+The staged bundle lives at `native/VoiceInputShell/.stage/VoiceInputShell.app`.
+Copy it to `/Applications` or package it into a `.dmg` for distribution:
+
+```bash
+hdiutil create -volname "Voice Input" \
+  -srcfolder native/VoiceInputShell/.stage/VoiceInputShell.app \
+  -ov -format UDZO \
+  VoiceInput.dmg
+```
+
+> **Note:** The bundled app is not code-signed. For distribution outside your own machine add an
+> `apple-development` or `developer-id-application` signing step after staging:
+> ```bash
+> codesign --deep --force --sign "Developer ID Application: Your Name" \
+>   native/VoiceInputShell/.stage/VoiceInputShell.app
+> ```
+
 ## Project structure
 
 ```
