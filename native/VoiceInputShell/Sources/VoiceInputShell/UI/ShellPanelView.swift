@@ -156,6 +156,24 @@ struct ShellPanelView: View {
                         .tint(heroTint)
                         .disabled(!viewModel.canStartRecording && !viewModel.canStopRecording)
 
+                        if viewModel.isRecordingActive && !viewModel.liveTranscript.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Live")
+                                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                                    .foregroundStyle(panelDanger.opacity(0.8))
+                                Text(viewModel.liveTranscript)
+                                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                                    .foregroundStyle(panelText.opacity(0.85))
+                                    .italic()
+                                Text("Listening\u{2026}")
+                                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                                    .foregroundStyle(panelMuted)
+                            }
+                            .padding(14)
+                            .background(panelDanger.opacity(0.08), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .transition(.opacity.combined(with: .scale(scale: 0.97)))
+                        }
+
                         if !viewModel.recordingPath.isEmpty {
                             HStack(spacing: 10) {
                                 Image(systemName: "waveform.badge.mic")
@@ -261,6 +279,7 @@ struct ShellPanelView: View {
                     }
                     .animation(.easeOut(duration: 0.22), value: viewModel.isReady)
                     .animation(.easeOut(duration: 0.18), value: viewModel.recordingPath)
+                    .animation(.easeOut(duration: 0.18), value: viewModel.liveTranscript.isEmpty)
                     .animation(.easeOut(duration: 0.18), value: viewModel.transcriptText.isEmpty)
                     .padding(.horizontal, 18)
                     .padding(.bottom, 12)

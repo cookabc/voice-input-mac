@@ -10,6 +10,9 @@ typealias VoiceCoreStopRecordingFn = @convention(c) () -> Bool
 typealias VoiceCoreIsRecordingFn = @convention(c) () -> Bool
 typealias VoiceCoreTranscribeAudioFn = @convention(c) (UnsafePointer<CChar>?, UnsafePointer<CChar>?, Bool) -> UnsafeMutablePointer<CChar>?
 typealias VoiceCoreStringFreeFn = @convention(c) (UnsafeMutablePointer<CChar>?) -> Void
+typealias VoiceCoreStartLiveASRFn = @convention(c) () -> Bool
+typealias VoiceCoreStopLiveASRFn = @convention(c) () -> Bool
+typealias VoiceCoreGetPartialTranscriptFn = @convention(c) () -> UnsafeMutablePointer<CChar>?
 
 struct RustSmokeStatus: Decodable {
     let name: String
@@ -64,6 +67,9 @@ final class RustCoreBridge {
     private let isRecordingFn: VoiceCoreIsRecordingFn
     private let transcribeAudioFn: VoiceCoreTranscribeAudioFn
     private let stringFreeFn: VoiceCoreStringFreeFn
+    private let startLiveTranscriptionFn: VoiceCoreStartLiveASRFn
+    private let stopLiveTranscriptionFn: VoiceCoreStopLiveASRFn
+    private let getPartialTranscriptFn: VoiceCoreGetPartialTranscriptFn
 
     private init() throws {
         let libraryPath = AppPaths.rustCoreLibraryPath
@@ -82,6 +88,9 @@ final class RustCoreBridge {
         isRecordingFn = try RustCoreBridge.loadSymbol(handle: handle, name: "voice_input_core_is_recording")
         transcribeAudioFn = try RustCoreBridge.loadSymbol(handle: handle, name: "voice_input_core_transcribe_audio")
         stringFreeFn = try RustCoreBridge.loadSymbol(handle: handle, name: "voice_input_core_string_free")
+        startLiveTranscriptionFn = try RustCoreBridge.loadSymbol(handle: handle, name: "voice_input_core_start_live_transcription")
+        stopLiveTranscriptionFn = try RustCoreBridge.loadSymbol(handle: handle, name: "voice_input_core_stop_live_transcription")
+        getPartialTranscriptFn = try RustCoreBridge.loadSymbol(handle: handle, name: "voice_input_core_get_partial_transcript")
     }
 
     deinit {
@@ -148,6 +157,28 @@ final class RustCoreBridge {
                 return try Self.makeDecoder().decode(RustTranscriptionResult.self, from: data)
             }
         }
+    }
+
+    func startLiveTranscription() throws {
+        try configureHelperPaths()
+        guard startLiveTranscriptionFn() else {
+            throw RustCoreBridgeError.callFailed(lastErrorMessage())
+        }
+    }
+
+    func stopLiveTranscription() throws {
+        try configureHelperPaths()
+        guard stopLiveTranscriptionFn() else {
+            throw RustCoreBridgeError.callFailed(lastErrorMessage())
+        }
+    }
+
+    func getPartialTranscript() -> String {
+        // configureHelperPaths already called during startLiveTranscription;
+        // skip it here to keep polling fast.
+        guard let raw = getPartialTranscriptFn() else { return "" }
+        defer { stringFreeFn(raw) }
+        return String(cString: raw)
     }
 
     private func configureHelperPaths() throws {

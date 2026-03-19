@@ -1,5 +1,6 @@
 mod audio;
 mod asr;
+mod live_asr;
 
 use serde::Serialize;
 use std::ffi::{c_char, CStr, CString};
@@ -28,6 +29,7 @@ pub use asr::TranscriptionResult;
 
 static TOOL_PATHS: OnceLock<RwLock<ToolPaths>> = OnceLock::new();
 static LAST_ERROR: OnceLock<Mutex<Option<String>>> = OnceLock::new();
+static LIVE_WORKER: OnceLock<Mutex<Option<live_asr::LiveTranscriptionWorker>>> = OnceLock::new();
 
 fn tool_paths() -> &'static RwLock<ToolPaths> {
     TOOL_PATHS.get_or_init(|| RwLock::new(ToolPaths::default()))
@@ -35,6 +37,10 @@ fn tool_paths() -> &'static RwLock<ToolPaths> {
 
 fn last_error() -> &'static Mutex<Option<String>> {
     LAST_ERROR.get_or_init(|| Mutex::new(None))
+}
+
+fn live_worker() -> &'static Mutex<Option<live_asr::LiveTranscriptionWorker>> {
+    LIVE_WORKER.get_or_init(|| Mutex::new(None))
 }
 
 fn c_string_from(value: String) -> *mut c_char {
@@ -211,6 +217,53 @@ pub extern "C" fn voice_input_core_transcribe_audio(
         ),
         Err(_) => std::ptr::null_mut(),
     }
+}
+
+#[no_mangle]
+pub extern "C" fn voice_input_core_start_live_transcription() -> bool {
+    let worker = live_asr::LiveTranscriptionWorker::start(
+        configured_ffmpeg_path(),
+        configured_coli_path(),
+        5,
+    );
+    match live_worker().lock() {
+        Ok(mut guard) => {
+            *guard = Some(worker);
+            clear_last_error_message();
+            true
+        }
+        Err(_) => {
+            set_last_error_message("Failed to acquire live worker lock");
+            false
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn voice_input_core_stop_live_transcription() -> bool {
+    match live_worker().lock() {
+        Ok(mut guard) => {
+            if let Some(mut worker) = guard.take() {
+                worker.stop();
+            }
+            clear_last_error_message();
+            true
+        }
+        Err(_) => {
+            set_last_error_message("Failed to acquire live worker lock");
+            false
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn voice_input_core_get_partial_transcript() -> *mut c_char {
+    if let Ok(guard) = live_worker().lock() {
+        if let Some(ref worker) = *guard {
+            return c_string_from(worker.get_transcript());
+        }
+    }
+    c_string_from(String::new())
 }
 
 #[no_mangle]

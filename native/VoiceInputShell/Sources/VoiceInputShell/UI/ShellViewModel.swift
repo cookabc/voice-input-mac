@@ -19,7 +19,9 @@ final class ShellViewModel: ObservableObject {
     @Published var transcriptMeta = ""
     @Published var isTranscribing = false
     @Published var isPlayingClip = false
+    @Published var liveTranscript = ""
     private var audioPlayer: AVAudioPlayer?
+    private var liveASRTimer: Timer?
 
     var isReady: Bool {
         runtimeBadge == "Ready"
@@ -100,6 +102,17 @@ final class ShellViewModel: ObservableObject {
             actionError = ""
             transcriptText = ""
             transcriptMeta = ""
+            liveTranscript = ""
+            try? RustCoreBridge.bridge().startLiveTranscription()
+            liveASRTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { _ in
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    let partial = (try? RustCoreBridge.bridge())?.getPartialTranscript() ?? ""
+                    if !partial.isEmpty {
+                        self.liveTranscript = partial
+                    }
+                }
+            }
         } catch {
             actionError = error.localizedDescription
             recordingLine = "Start failed"
@@ -113,9 +126,13 @@ final class ShellViewModel: ObservableObject {
         }
 
         do {
+            liveASRTimer?.invalidate()
+            liveASRTimer = nil
+            try? RustCoreBridge.bridge().stopLiveTranscription()
             try RustCoreBridge.bridge().stopRecording()
             recordingLine = "Recorded"
             actionError = ""
+            transcribeLatestRecording()
         } catch {
             actionError = error.localizedDescription
             recordingLine = "Stop failed"
@@ -143,6 +160,7 @@ final class ShellViewModel: ObservableObject {
                 }
                 let meta = metaParts.joined(separator: "  |  ")
                 await MainActor.run {
+                    vm.liveTranscript = ""
                     vm.transcriptText = text
                     vm.transcriptMeta = meta
                     vm.isTranscribing = false
