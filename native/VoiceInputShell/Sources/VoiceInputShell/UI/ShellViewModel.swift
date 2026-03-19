@@ -8,9 +8,7 @@ final class ShellViewModel: ObservableObject {
 
     @Published var title = "Voice Input"
     @Published var detail = "Checking the dictation engine…"
-    @Published var rustVersion = "—"
     @Published var runtimeBadge = "Checking"
-    @Published var ffmpegLine = "ffmpeg unresolved"
     @Published var coliLine = "coli unresolved"
     @Published var recordingLine = "Idle"
     @Published var recordingPath = ""
@@ -21,70 +19,37 @@ final class ShellViewModel: ObservableObject {
     @Published var isPlayingClip = false
     @Published var liveTranscript = ""
     private var audioPlayer: AVAudioPlayer?
-    private var liveASRTimer: Timer?
 
-    var isReady: Bool {
-        runtimeBadge == "Ready"
-    }
+    private let core = VoiceCoreService()
 
-    var isRecordingActive: Bool {
-        recordingLine == "Recording live"
-    }
-
-
-    var canStartRecording: Bool {
-        isReady && !isRecordingActive
-    }
-
-    var canStopRecording: Bool {
-        isRecordingActive
-    }
-
-    var canTranscribe: Bool {
-        !recordingPath.isEmpty && !isRecordingActive && !isTranscribing
-    }
-
-    var canPasteTranscript: Bool {
-        !transcriptText.isEmpty
-    }
+    var isReady: Bool { runtimeBadge == "Ready" }
+    var isRecordingActive: Bool { recordingLine == "Recording live" }
+    var canStartRecording: Bool { isReady && !isRecordingActive }
+    var canStopRecording: Bool { isRecordingActive }
+    var canTranscribe: Bool { !recordingPath.isEmpty && !isRecordingActive && !isTranscribing }
+    var canPasteTranscript: Bool { !transcriptText.isEmpty }
 
     var statusFooter: String {
-        let ff = ffmpegLine.contains("ready") ? "✓ ffmpeg" : "✗ ffmpeg"
-        let co = coliLine.contains("ready") ? "✓ coli" : "✗ coli"
-        return "\(ff)  ·  \(co)  ·  Core \(rustVersion)"
+        coliLine.contains("ready") ? "✓ coli" : "✗ coli"
     }
 
     func refreshRuntime() {
-        do {
-            let bridge = try RustCoreBridge.bridge()
-            let summary = try bridge.runtimeSummary()
-            let recording = try bridge.isRecording()
-            rustVersion = bridge.version()
-            runtimeBadge = summary.ffmpegExists && summary.coliExists ? "Ready" : "Needs setup"
-            let missingTools = (!summary.ffmpegExists ? ["ffmpeg"] : []) + (!summary.coliExists ? ["coli"] : [])
-            if missingTools.isEmpty {
-                title = "Ready to dictate"
-                detail = "Record a clip, then transcribe and paste it into any app."
-            } else {
-                title = "Setup required"
-                let toolList = missingTools.joined(separator: " and ")
-                detail = "Install \(toolList) to enable dictation."
-            }
-            ffmpegLine = statusLine(name: "ffmpeg", path: summary.ffmpegPath, available: summary.ffmpegExists)
-            coliLine = statusLine(name: "coli", path: summary.coliPath, available: summary.coliExists)
-            recordingLine = recording ? "Recording live" : "Ready to record"
-            actionError = ""
-        } catch {
-            runtimeBadge = "Offline"
-            title = "Engine unavailable"
-            detail = error.localizedDescription
-            rustVersion = "—"
-            ffmpegLine = "ffmpeg unresolved"
-            coliLine = "coli unresolved"
-            recordingLine = "Unavailable"
-            transcriptText = ""
-            transcriptMeta = ""
+        Task { await core.requestPermissions() }
+
+        let coliExists = core.checkColiAvailable()
+        runtimeBadge = coliExists ? "Ready" : "Needs setup"
+
+        if coliExists {
+            title = "Ready to dictate"
+            detail = "Record a clip, then transcribe and paste it into any app."
+        } else {
+            title = "Setup required"
+            detail = "Install coli (@marswave/coli) to enable transcription."
         }
+
+        coliLine = statusLine(name: "coli", path: AppPaths.coliHelperPath, available: coliExists)
+        recordingLine = core.isRecording ? "Recording live" : "Ready to record"
+        actionError = ""
     }
 
     func startRecording() {
@@ -96,23 +61,18 @@ final class ShellViewModel: ObservableObject {
         stopClipPlayback()
 
         do {
-            let path = try RustCoreBridge.bridge().startRecording()
+            let path = try core.startRecording()
+            try core.startLiveTranscription { [weak self] partial in
+                Task { @MainActor [weak self] in
+                    self?.liveTranscript = partial
+                }
+            }
             recordingPath = path
             recordingLine = "Recording live"
             actionError = ""
             transcriptText = ""
             transcriptMeta = ""
             liveTranscript = ""
-            try? RustCoreBridge.bridge().startLiveTranscription()
-            liveASRTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { _ in
-                Task { @MainActor [weak self] in
-                    guard let self else { return }
-                    let partial = (try? RustCoreBridge.bridge())?.getPartialTranscript() ?? ""
-                    if !partial.isEmpty {
-                        self.liveTranscript = partial
-                    }
-                }
-            }
         } catch {
             actionError = error.localizedDescription
             recordingLine = "Start failed"
@@ -125,18 +85,11 @@ final class ShellViewModel: ObservableObject {
             return
         }
 
-        do {
-            liveASRTimer?.invalidate()
-            liveASRTimer = nil
-            try? RustCoreBridge.bridge().stopLiveTranscription()
-            try RustCoreBridge.bridge().stopRecording()
-            recordingLine = "Recorded"
-            actionError = ""
-            transcribeLatestRecording()
-        } catch {
-            actionError = error.localizedDescription
-            recordingLine = "Stop failed"
-        }
+        core.stopRecording()
+        core.stopLiveTranscription()
+        recordingLine = "Recorded"
+        actionError = ""
+        transcribeLatestRecording()
     }
 
     func transcribeLatestRecording() {
@@ -145,19 +98,15 @@ final class ShellViewModel: ObservableObject {
         isTranscribing = true
         actionError = ""
         let path = recordingPath
-        let vm = self   // strong let — keeps vm alive for the duration of the task
+        let vm = self
 
         Task.detached(priority: .userInitiated) {
             do {
-                let result = try RustCoreBridge.bridge().transcribeAudio(at: path)
+                let result = try await vm.core.transcribeAudio(at: path)
                 let text = result.text
                 var metaParts = [String]()
-                if let lang = result.lang, !lang.isEmpty {
-                    metaParts.append("lang: \(lang)")
-                }
-                if let duration = result.duration {
-                    metaParts.append(String(format: "audio: %.1fs", duration))
-                }
+                if let lang = result.lang, !lang.isEmpty { metaParts.append("lang: \(lang)") }
+                if let dur = result.duration { metaParts.append(String(format: "audio: %.1fs", dur)) }
                 let meta = metaParts.joined(separator: "  |  ")
                 await MainActor.run {
                     vm.liveTranscript = ""
@@ -181,7 +130,6 @@ final class ShellViewModel: ObservableObject {
             actionError = "No transcript available to copy."
             return
         }
-
         TextInsertionService.copyToClipboard(transcriptText)
         actionError = ""
     }
@@ -242,8 +190,8 @@ final class ShellViewModel: ObservableObject {
         transcriptMeta = ""
     }
 
-    private func statusLine(name: String, path: String?, available: Bool) -> String {
-        let location = path.flatMap { URL(fileURLWithPath: $0).lastPathComponent.isEmpty ? nil : URL(fileURLWithPath: $0).lastPathComponent } ?? "not found"
+    private func statusLine(name: String, path: String, available: Bool) -> String {
+        let location = URL(fileURLWithPath: path).lastPathComponent
         return available ? "\(name) ready · \(location)" : "\(name) missing · \(location)"
     }
 }
