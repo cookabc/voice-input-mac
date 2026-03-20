@@ -1,0 +1,1 @@
+/Users/advance/Documents/voice-input-mac/target/release/libvoice_input_core.rlib: /Users/advance/Documents/voice-input-mac/src/asr.rs /Users/advance/Documents/voice-input-mac/src/audio.rs /Users/advance/Documents/voice-input-mac/src/lib.rs /Users/advance/Documents/voice-input-mac/src/live_asr.rs

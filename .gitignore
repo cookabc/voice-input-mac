@@ -1,15 +1,9 @@
-# Rust
-/target/
-Cargo.lock
-**/*.rs.bk
-*.pdb
-
 # macOS
 .DS_Store
 
-# Swift / Xcode
-native/VoiceInputShell/.build/
-native/VoiceInputShell/.stage/
+# Swift / SPM
+.build/
+.stage/
 .swiftpm/
 Package.resolved
 DerivedData/
