@@ -249,15 +249,16 @@ struct ShellPanelView: View {
                                 .background((dark ? Color(red: 0.33, green: 0.15, blue: 0.13) : Color(red: 0.98, green: 0.90, blue: 0.88)).opacity(0.92), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                         }
 
-                        if !viewModel.transcriptText.isEmpty {
-                            VStack(alignment: .leading, spacing: 0) {
-                                // ── Transcript ──
-                                VStack(alignment: .leading, spacing: 10) {
-                                    HStack {
-                                        Text("Transcript")
-                                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                                            .foregroundStyle(panelMuted)
-                                        Spacer()
+                        // ── Transcript + Polished card (always visible) ──
+                        VStack(alignment: .leading, spacing: 0) {
+                            // ── Transcript ──
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack {
+                                    Text("Transcript")
+                                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                                        .foregroundStyle(panelMuted)
+                                    Spacer()
+                                    if !viewModel.transcriptText.isEmpty {
                                         Button {
                                             viewModel.clearTranscript()
                                         } label: {
@@ -269,92 +270,105 @@ struct ShellPanelView: View {
                                         }
                                         .buttonStyle(.plain)
                                     }
+                                }
 
+                                if viewModel.transcriptText.isEmpty {
+                                    Text("Your transcription will appear here…")
+                                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                                        .foregroundStyle(panelMuted.opacity(0.45))
+                                        .frame(minHeight: 44, alignment: .topLeading)
+                                } else {
                                     Text(viewModel.transcriptText)
                                         .font(.system(size: 14, weight: .medium, design: .rounded))
                                         .foregroundStyle(panelText)
                                         .textSelection(.enabled)
-
-                                    if !viewModel.transcriptMeta.isEmpty {
-                                        Text(viewModel.transcriptMeta)
-                                            .font(.system(size: 11, weight: .medium, design: .monospaced))
-                                            .foregroundStyle(panelMuted)
-                                    }
-
-                                    HStack(spacing: 8) {
-                                        Button {
-                                            viewModel.copyTranscript()
-                                        } label: {
-                                            Label("Copy", systemImage: "doc.on.doc")
-                                                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                        }
-                                        .buttonStyle(.bordered)
-                                        .tint(panelMuted)
-
-                                        Spacer()
-
-                                        Button {
-                                            viewModel.polishTranscript()
-                                        } label: {
-                                            HStack(spacing: 5) {
-                                                Image(systemName: viewModel.isPolishing ? "hourglass" : "sparkles")
-                                                    .font(.system(size: 11, weight: .bold))
-                                                Text(viewModel.isPolishing ? "Polishing\u{2026}" : "Polish")
-                                                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                                            }
-                                            .padding(.horizontal, 4)
-                                        }
-                                        .buttonStyle(.borderedProminent)
-                                        .tint(Color(red: 0.62, green: 0.46, blue: 0.86))
-                                        .disabled(!viewModel.canPolish)
-                                    }
                                 }
-                                .padding(16)
 
-                                // ── Polished (inline, same card) ──
-                                if !viewModel.polishedText.isEmpty {
-                                    Rectangle()
-                                        .fill(Color(red: 0.62, green: 0.46, blue: 0.86).opacity(0.2))
-                                        .frame(height: 1)
-                                        .padding(.horizontal, 16)
+                                if !viewModel.transcriptMeta.isEmpty {
+                                    Text(viewModel.transcriptMeta)
+                                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                        .foregroundStyle(panelMuted)
+                                }
 
-                                    VStack(alignment: .leading, spacing: 10) {
-                                        HStack(spacing: 6) {
-                                            Image(systemName: "sparkles")
-                                                .font(.system(size: 10, weight: .bold))
-                                            Text("Polished")
-                                                .font(.system(size: 11, weight: .bold, design: .rounded))
-                                        }
-                                        .foregroundStyle(Color(red: 0.72, green: 0.58, blue: 0.94))
-
-                                        Text(viewModel.polishedText)
-                                            .font(.system(size: 14, weight: .medium, design: .rounded))
-                                            .foregroundStyle(panelText)
-                                            .textSelection(.enabled)
-
-                                        Button {
-                                            viewModel.copyPolished()
-                                        } label: {
-                                            Label("Copy", systemImage: "doc.on.doc")
-                                                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                        }
-                                        .buttonStyle(.bordered)
-                                        .tint(Color(red: 0.62, green: 0.46, blue: 0.86))
+                                HStack(spacing: 8) {
+                                    Button {
+                                        viewModel.copyTranscript()
+                                    } label: {
+                                        Label("Copy", systemImage: "doc.on.doc")
+                                            .font(.system(size: 12, weight: .semibold, design: .rounded))
                                     }
-                                    .padding(16)
-                                    .background(Color(red: 0.62, green: 0.46, blue: 0.86).opacity(dark ? 0.12 : 0.07))
+                                    .buttonStyle(.bordered)
+                                    .tint(panelMuted)
+                                    .disabled(viewModel.transcriptText.isEmpty)
+
+                                    Spacer()
+
+                                    Button {
+                                        viewModel.polishTranscript()
+                                    } label: {
+                                        HStack(spacing: 5) {
+                                            Image(systemName: viewModel.isPolishing ? "hourglass" : "sparkles")
+                                                .font(.system(size: 11, weight: .bold))
+                                            Text(viewModel.isPolishing ? "Polishing\u{2026}" : "Polish")
+                                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                        }
+                                        .padding(.horizontal, 4)
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(Color(red: 0.62, green: 0.46, blue: 0.86))
+                                    .disabled(!viewModel.canPolish)
                                 }
                             }
-                            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                            .background(panelSurfaceStrong.opacity(0.92), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                            .transition(.opacity.combined(with: .scale(scale: 0.97)))
+                            .padding(16)
+
+                            // ── Polished (always visible below divider) ──
+                            Rectangle()
+                                .fill(Color(red: 0.62, green: 0.46, blue: 0.86).opacity(0.2))
+                                .frame(height: 1)
+                                .padding(.horizontal, 16)
+
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "sparkles")
+                                        .font(.system(size: 10, weight: .bold))
+                                    Text("Polished")
+                                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                                }
+                                .foregroundStyle(viewModel.polishedText.isEmpty
+                                    ? Color(red: 0.72, green: 0.58, blue: 0.94).opacity(0.4)
+                                    : Color(red: 0.72, green: 0.58, blue: 0.94))
+
+                                if viewModel.polishedText.isEmpty {
+                                    Text("Polished result will appear here…")
+                                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                                        .foregroundStyle(panelMuted.opacity(0.45))
+                                        .frame(minHeight: 44, alignment: .topLeading)
+                                } else {
+                                    Text(viewModel.polishedText)
+                                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                                        .foregroundStyle(panelText)
+                                        .textSelection(.enabled)
+                                }
+
+                                Button {
+                                    viewModel.copyPolished()
+                                } label: {
+                                    Label("Copy", systemImage: "doc.on.doc")
+                                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(Color(red: 0.62, green: 0.46, blue: 0.86))
+                                .disabled(viewModel.polishedText.isEmpty)
+                            }
+                            .padding(16)
+                            .background(Color(red: 0.62, green: 0.46, blue: 0.86).opacity(dark ? 0.10 : 0.06))
                         }
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .background(panelSurfaceStrong.opacity(0.92), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                     }
                     .animation(.easeOut(duration: 0.18), value: viewModel.recordingPath)
                     .animation(.easeOut(duration: 0.18), value: viewModel.isRecordingActive)
                     .animation(.easeOut(duration: 0.18), value: viewModel.isTranscribing)
-                    .animation(.easeOut(duration: 0.18), value: viewModel.transcriptText.isEmpty)
-                    .animation(.easeOut(duration: 0.18), value: viewModel.polishedText.isEmpty)
                     .padding(.horizontal, 18)
                     .padding(.bottom, 12)
                 }
