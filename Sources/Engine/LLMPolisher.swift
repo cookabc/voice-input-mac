@@ -28,8 +28,27 @@ actor LLMPolisher {
         UserDefaults.standard.string(forKey: Self.apiKeyUD).flatMap { $0.isEmpty ? nil : $0 }
     }
 
+    nonisolated var baseURL: String {
+        UserDefaults.standard.string(forKey: Self.baseURLUD) ?? "https://api.openai.com"
+    }
+
+    nonisolated var model: String {
+        UserDefaults.standard.string(forKey: Self.modelUD) ?? "gpt-4o-mini"
+    }
+
     nonisolated func saveApiKey(_ key: String) {
-        UserDefaults.standard.set(key.trimmingCharacters(in: .whitespaces), forKey: Self.apiKeyUD)
+        let v = key.trimmingCharacters(in: .whitespaces)
+        UserDefaults.standard.set(v, forKey: Self.apiKeyUD)
+    }
+
+    nonisolated func saveBaseURL(_ url: String) {
+        let v = url.trimmingCharacters(in: .whitespaces)
+        UserDefaults.standard.set(v.isEmpty ? "https://api.openai.com" : v, forKey: Self.baseURLUD)
+    }
+
+    nonisolated func saveModel(_ m: String) {
+        let v = m.trimmingCharacters(in: .whitespaces)
+        UserDefaults.standard.set(v.isEmpty ? "gpt-4o-mini" : v, forKey: Self.modelUD)
     }
 
     func polish(text: String) async throws -> String {

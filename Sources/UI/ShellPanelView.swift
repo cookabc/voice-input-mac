@@ -92,6 +92,18 @@ struct ShellPanelView: View {
                         .background(badgeTint.opacity(0.18), in: Capsule())
 
                     Button {
+                        viewModel.openSettings()
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(panelMuted)
+                            .frame(width: 24, height: 24)
+                            .background((dark ? Color.white : Color.black).opacity(0.10), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Settings")
+
+                    Button {
                         viewModel.onRequestQuit?()
                     } label: {
                         Image(systemName: "power")
@@ -163,30 +175,48 @@ struct ShellPanelView: View {
                         .tint(heroTint)
                         .disabled(!viewModel.canStartRecording && !viewModel.canStopRecording)
 
-                        // Show live card while recording OR while transcribing (coli running).
-                        // It disappears only when the final transcriptText replaces it.
-                        if !viewModel.liveTranscript.isEmpty && viewModel.transcriptText.isEmpty {
-                            VStack(alignment: .leading, spacing: 6) {
-                                HStack(spacing: 6) {
-                                    Text(viewModel.isRecordingActive ? "Live" : "Processing")
-                                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                                        .foregroundStyle(viewModel.isRecordingActive ? panelDanger.opacity(0.8) : panelMuted)
-                                    if viewModel.isTranscribing {
-                                        ProgressView()
-                                            .scaleEffect(0.6)
-                                            .frame(width: 14, height: 14)
+                        // Recording indicator — live timer while mic is open.
+                        if viewModel.isRecordingActive {
+                            HStack(spacing: 12) {
+                                PulsingDot(color: panelDanger)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    HStack(spacing: 8) {
+                                        Text("Recording")
+                                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                                            .foregroundStyle(panelDanger.opacity(0.9))
+                                        Text(viewModel.recordingTimeString)
+                                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                            .foregroundStyle(panelDanger)
                                     }
+                                    Text("Listening for your voice\u{2026}")
+                                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                                        .foregroundStyle(panelMuted)
                                 }
-                                Text(viewModel.liveTranscript)
-                                    .font(.system(size: 14, weight: .medium, design: .rounded))
-                                    .foregroundStyle(panelText.opacity(0.85))
-                                    .italic()
-                                Text(viewModel.isRecordingActive ? "Listening\u{2026}" : "Transcribing with coli\u{2026}")
-                                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                                    .foregroundStyle(panelMuted)
+                                Spacer()
                             }
                             .padding(14)
-                            .background(panelDanger.opacity(viewModel.isRecordingActive ? 0.08 : 0.04), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .background(panelDanger.opacity(0.08), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .transition(.opacity.combined(with: .scale(scale: 0.97)))
+                        }
+
+                        // Processing indicator — coli transcribing after recording stops.
+                        if viewModel.isTranscribing && viewModel.transcriptText.isEmpty {
+                            HStack(spacing: 12) {
+                                ProgressView()
+                                    .scaleEffect(0.75)
+                                    .frame(width: 20, height: 20)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Transcribing\u{2026}")
+                                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                                        .foregroundStyle(panelMuted)
+                                    Text("coli is processing your audio")
+                                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                                        .foregroundStyle(panelMuted.opacity(0.7))
+                                }
+                                Spacer()
+                            }
+                            .padding(14)
+                            .background(panelSurface.opacity(0.88), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                             .transition(.opacity.combined(with: .scale(scale: 0.97)))
                         }
 
@@ -343,7 +373,8 @@ struct ShellPanelView: View {
                     }
                     .animation(.easeOut(duration: 0.22), value: viewModel.isReady)
                     .animation(.easeOut(duration: 0.18), value: viewModel.recordingPath)
-                    .animation(.easeOut(duration: 0.18), value: viewModel.liveTranscript.isEmpty)
+                    .animation(.easeOut(duration: 0.18), value: viewModel.isRecordingActive)
+                    .animation(.easeOut(duration: 0.18), value: viewModel.isTranscribing)
                     .animation(.easeOut(duration: 0.18), value: viewModel.transcriptText.isEmpty)
                     .animation(.easeOut(duration: 0.18), value: viewModel.polishedText.isEmpty)
                     .padding(.horizontal, 18)
@@ -362,8 +393,38 @@ struct ShellPanelView: View {
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .frame(width: 408, height: 500)
         .foregroundStyle(panelText)
+        .overlay {
+            if viewModel.showSettings {
+                SettingsView(viewModel: viewModel)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .trailing),
+                        removal:   .move(edge: .trailing)
+                    ))
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: viewModel.showSettings)
         .onAppear {
             viewModel.refreshRuntime()
         }
+    }
+}
+
+// MARK: - Supporting Views
+
+private struct PulsingDot: View {
+    let color: Color
+    @State private var scale: CGFloat = 1.0
+
+    var body: some View {
+        Circle()
+            .fill(color)
+            .frame(width: 8, height: 8)
+            .scaleEffect(scale)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true)) {
+                    scale = 0.45
+                }
+            }
     }
 }

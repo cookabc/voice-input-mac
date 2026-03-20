@@ -21,7 +21,10 @@ final class ShellViewModel: ObservableObject {
     @Published var liveTranscript = ""
     @Published var isPolishing = false
     @Published var polishedText = ""
+    @Published var showSettings = false
+    @Published var recordingElapsed = 0
     private var audioPlayer: AVAudioPlayer?
+    private var recordingTimer: Timer?
 
     private let core = VoiceCoreService()
 
@@ -35,6 +38,12 @@ final class ShellViewModel: ObservableObject {
 
     var statusFooter: String {
         coliLine.contains("ready") ? "✓ coli" : "✗ coli"
+    }
+
+    var recordingTimeString: String {
+        let m = recordingElapsed / 60
+        let s = recordingElapsed % 60
+        return String(format: "%d:%02d", m, s)
     }
 
     func refreshRuntime() {
@@ -84,16 +93,12 @@ final class ShellViewModel: ObservableObject {
             return
         }
 
-        // Live transcription is best-effort — recording continues even if unavailable.
-        do {
-            try core.startLiveTranscription { [weak self] partial in
-                Task { @MainActor [weak self] in
-                    self?.liveTranscript = partial
-                }
-            }
-        } catch {
-            // Speech recognition unavailable (e.g. not authorized yet); coli covers final ASR.
+        // Start elapsed recording timer.
+        recordingElapsed = 0
+        recordingTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.recordingElapsed += 1 }
         }
+        // Note: Live ASR (SFSpeechRecognizer) not used — coli provides better accuracy after recording.
     }
 
     func stopRecording() {
@@ -102,8 +107,9 @@ final class ShellViewModel: ObservableObject {
             return
         }
 
+        recordingTimer?.invalidate()
+        recordingTimer = nil
         core.stopRecording()
-        core.stopLiveTranscription()
         recordingLine = "Recorded"
         actionError = ""
         transcribeLatestRecording()
@@ -210,11 +216,15 @@ final class ShellViewModel: ObservableObject {
 
     // MARK: - LLM Polish
 
+    func openSettings() { showSettings = true }
+    func closeSettings() { showSettings = false }
+
     func polishTranscript() {
         guard canPolish else { return }
 
         if LLMPolisher.shared.apiKey == nil {
-            promptForApiKey { [weak self] in self?.polishTranscript() }
+            actionError = "Enter your API key in Settings to enable polishing."
+            showSettings = true
             return
         }
 
@@ -263,27 +273,6 @@ final class ShellViewModel: ObservableObject {
             try? await Task.sleep(nanoseconds: 150_000_000)
             try? TextInsertionService.simulatePaste()
         }
-    }
-
-    private func promptForApiKey(completion: @escaping () -> Void) {
-        let alert = NSAlert()
-        alert.messageText = "OpenAI API Key"
-        alert.informativeText = "Enter your API key to enable transcript polishing. It is stored locally and never sent anywhere except your chosen endpoint."
-        alert.addButton(withTitle: "Save")
-        alert.addButton(withTitle: "Cancel")
-
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 340, height: 24))
-        field.placeholderString = "sk-…"
-        field.usesSingleLineMode = true
-        field.stringValue = LLMPolisher.shared.apiKey ?? ""
-        alert.accessoryView = field
-        alert.window.initialFirstResponder = field
-
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        let key = field.stringValue.trimmingCharacters(in: .whitespaces)
-        guard !key.isEmpty else { return }
-        LLMPolisher.shared.saveApiKey(key)
-        completion()
     }
 
     private func statusLine(name: String, path: String, available: Bool) -> String {
