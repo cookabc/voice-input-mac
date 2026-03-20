@@ -223,31 +223,39 @@ struct ShellPanelView: View {
                         }
 
                         if !viewModel.recordingPath.isEmpty {
-                            HStack(spacing: 10) {
-                                Image(systemName: "waveform.badge.mic")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(panelAccentSoft)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Clip recorded")
-                                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    Circle()
+                                        .fill(panelAccentSoft.opacity(0.18))
+                                        .frame(width: 36, height: 36)
+                                    Image(systemName: "waveform")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundStyle(panelAccentSoft)
+                                }
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text("Clip ready")
+                                        .font(.system(size: 13, weight: .semibold, design: .rounded))
                                         .foregroundStyle(panelText)
                                     Text(URL(fileURLWithPath: viewModel.recordingPath).lastPathComponent)
-                                        .font(.system(size: 11, weight: .medium, design: .monospaced))
-                                        .foregroundStyle(panelMuted)
+                                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                        .foregroundStyle(panelMuted.opacity(0.7))
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
                                 }
                                 Spacer()
                                 Button {
                                     viewModel.toggleClipPlayback()
                                 } label: {
                                     Image(systemName: viewModel.isPlayingClip ? "stop.fill" : "play.fill")
-                                        .font(.system(size: 13, weight: .bold))
-                                        .foregroundStyle(panelAccent)
-                                        .frame(width: 32, height: 32)
-                                        .background(panelAccent.opacity(0.15), in: Circle())
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundStyle(panelAccentSoft)
+                                        .frame(width: 30, height: 30)
+                                        .background(panelAccentSoft.opacity(0.15), in: Circle())
                                 }
                                 .buttonStyle(.plain)
                             }
-                            .padding(14)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
                             .background(panelSurface.opacity(0.88), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                             .transition(.opacity.combined(with: .scale(scale: 0.97)))
                         }
@@ -292,25 +300,30 @@ struct ShellPanelView: View {
                                         .foregroundStyle(panelMuted)
                                 }
 
-                                HStack(spacing: 10) {
-                                    Button("Copy") {
+                                HStack(spacing: 8) {
+                                    Button {
                                         viewModel.copyTranscript()
+                                    } label: {
+                                        Label("Copy", systemImage: "doc.on.doc")
+                                            .font(.system(size: 12, weight: .semibold, design: .rounded))
                                     }
                                     .buttonStyle(.bordered)
-                                    .tint(panelAccentSoft)
+                                    .tint(panelMuted)
 
                                     Spacer()
 
                                     Button {
                                         viewModel.polishTranscript()
                                     } label: {
-                                        Label(
-                                            viewModel.isPolishing ? "Polishing\u{2026}" : "\u{2736} Polish",
-                                            systemImage: viewModel.isPolishing ? "hourglass" : "sparkles"
-                                        )
-                                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                                        HStack(spacing: 5) {
+                                            Image(systemName: viewModel.isPolishing ? "hourglass" : "sparkles")
+                                                .font(.system(size: 11, weight: .bold))
+                                            Text(viewModel.isPolishing ? "Polishing…" : "Polish")
+                                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                        }
+                                        .padding(.horizontal, 4)
                                     }
-                                    .buttonStyle(.bordered)
+                                    .buttonStyle(.borderedProminent)
                                     .tint(Color(red: 0.62, green: 0.46, blue: 0.86))
                                     .disabled(!viewModel.canPolish)
                                 }
@@ -322,22 +335,31 @@ struct ShellPanelView: View {
 
                         if !viewModel.polishedText.isEmpty {
                             VStack(alignment: .leading, spacing: 10) {
-                                Label("Polished", systemImage: "sparkles")
-                                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                                    .foregroundStyle(Color(red: 0.72, green: 0.58, blue: 0.94))
+                                HStack(spacing: 6) {
+                                    Image(systemName: "sparkles")
+                                        .font(.system(size: 10, weight: .bold))
+                                    Text("Polished")
+                                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                                }
+                                .foregroundStyle(Color(red: 0.72, green: 0.58, blue: 0.94))
 
                                 Text(viewModel.polishedText)
                                     .font(.system(size: 14, weight: .medium, design: .rounded))
                                     .foregroundStyle(panelText)
                                     .textSelection(.enabled)
 
-                                HStack(spacing: 10) {
-                                    Button("Copy") {
-                                        viewModel.copyPolished()
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .tint(panelAccentSoft)
+                                Divider()
+                                    .overlay(Color(red: 0.62, green: 0.46, blue: 0.86).opacity(0.25))
+
+                                Button {
+                                    viewModel.copyPolished()
+                                } label: {
+                                    Label("Copy", systemImage: "doc.on.doc")
+                                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                        .frame(maxWidth: .infinity)
                                 }
+                                .buttonStyle(.borderedProminent)
+                                .tint(Color(red: 0.62, green: 0.46, blue: 0.86))
                             }
                             .padding(16)
                             .background(
@@ -350,15 +372,16 @@ struct ShellPanelView: View {
                         Button {
                             viewModel.transcribeLatestRecording()
                         } label: {
-                            Label(
-                                viewModel.isTranscribing ? "Transcribing\u{2026}" : "Transcribe",
-                                systemImage: viewModel.isTranscribing ? "hourglass" : "text.bubble.fill"
-                            )
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            HStack(spacing: 8) {
+                                Image(systemName: viewModel.isTranscribing ? "hourglass" : "text.bubble.fill")
+                                    .font(.system(size: 14, weight: .bold))
+                                Text(viewModel.isTranscribing ? "Transcribing…" : "Transcribe")
+                                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                            }
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
+                            .padding(.vertical, 10)
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.borderedProminent)
                         .tint(panelAccentSoft)
                         .disabled(!viewModel.canTranscribe)
                     }
