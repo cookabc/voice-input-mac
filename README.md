@@ -24,7 +24,7 @@ npm install -g @marswave/coli
 ## Running in development
 
 ```bash
-./Scripts/dev.sh
+./dev.sh
 ```
 
 Builds the Swift package, stages `Murmur.app` under `.stage/`, kills any running instance, and opens the new build.
@@ -32,15 +32,15 @@ Builds the Swift package, stages `Murmur.app` under `.stage/`, kills any running
 Other modes:
 
 ```bash
-./Scripts/dev.sh --no-run      # build + stage only
-./Scripts/dev.sh --release     # release build + stage + launch
-./Scripts/dev.sh --release --no-run
+./dev.sh --no-run      # build + stage only
+./dev.sh --release     # release build + stage + launch
+./dev.sh --release --no-run
 ```
 
 ## Building a distributable bundle
 
 ```bash
-./Scripts/dev.sh --release --no-run
+./dev.sh --release --no-run
 ```
 
 The staged bundle is at `.stage/Murmur.app`.
@@ -64,14 +64,12 @@ hdiutil create -volname "Murmur" \
 ```
 murmur/
 ├── Package.swift
+├── dev.sh                Build + stage + launch (--no-run, --release flags)
 ├── Sources/
-│   └── Murmur/
-│       ├── App/          Entry point, NSStatusItem, NSPanel
-│       ├── Engine/       Audio recording, live ASR, coli, LLM polish
-│       ├── Support/      Path resolution, CGEvent paste
-│       └── UI/           SwiftUI panel + view model
-├── Scripts/
-│   └── dev.sh            Build + stage + launch (--no-run, --release flags)
+│   ├── App/              Entry point, NSStatusItem, NSPanel
+│   ├── Engine/           Audio recording, live ASR, coli, LLM polish
+│   ├── Support/          Path resolution, CGEvent paste
+│   └── UI/               SwiftUI panel + view model
 └── docs/
     ├── product-spec.zh-CN.md
     └── technical-assessment.zh-CN.md
