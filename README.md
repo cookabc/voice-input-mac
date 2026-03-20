@@ -24,25 +24,31 @@ npm install -g @marswave/coli
 ## Running in development
 
 ```bash
-cd native/VoiceInputShell
-./Scripts/run-dev-app.sh
+./Scripts/dev.sh
 ```
 
 Builds the Swift package, stages `Murmur.app` under `.stage/`, kills any running instance, and opens the new build.
 
+Other modes:
+
+```bash
+./Scripts/dev.sh --no-run      # build + stage only
+./Scripts/dev.sh --release     # release build + stage + launch
+./Scripts/dev.sh --release --no-run
+```
+
 ## Building a distributable bundle
 
 ```bash
-cd native/VoiceInputShell
-./Scripts/stage-dev-app.sh --release
+./Scripts/dev.sh --release --no-run
 ```
 
-The staged bundle is at `native/VoiceInputShell/.stage/Murmur.app`.
+The staged bundle is at `.stage/Murmur.app`.
 
 ```bash
 # Package as DMG
 hdiutil create -volname "Murmur" \
-  -srcfolder native/VoiceInputShell/.stage/Murmur.app \
+  -srcfolder .stage/Murmur.app \
   -ov -format UDZO \
   Murmur.dmg
 ```
@@ -50,23 +56,22 @@ hdiutil create -volname "Murmur" \
 > **Note:** The bundle is unsigned. For distribution outside your own machine, sign it:
 > ```bash
 > codesign --deep --force --sign "Developer ID Application: Your Name" \
->   native/VoiceInputShell/.stage/Murmur.app
+>   .stage/Murmur.app
 > ```
 
 ## Project structure
 
 ```
-voice-input-mac/
-├── native/VoiceInputShell/          Swift menu bar app (the app)
-│   ├── Package.swift
-│   ├── Sources/VoiceInputShell/
-│   │   ├── App/                     Entry point, NSStatusItem, NSPanel
-│   │   ├── Engine/                  Audio recording, live ASR, coli, LLM polish
-│   │   ├── Support/                 Path resolution, CGEvent paste
-│   │   └── UI/                      SwiftUI panel + view model
-│   └── Scripts/
-│       ├── run-dev-app.sh           Build + stage + launch
-│       └── stage-dev-app.sh         Stage .app bundle
+murmur/
+├── Package.swift
+├── Sources/
+│   └── Murmur/
+│       ├── App/          Entry point, NSStatusItem, NSPanel
+│       ├── Engine/       Audio recording, live ASR, coli, LLM polish
+│       ├── Support/      Path resolution, CGEvent paste
+│       └── UI/           SwiftUI panel + view model
+├── Scripts/
+│   └── dev.sh            Build + stage + launch (--no-run, --release flags)
 └── docs/
     ├── product-spec.zh-CN.md
     └── technical-assessment.zh-CN.md

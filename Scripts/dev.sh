@@ -1,11 +1,21 @@
 #!/usr/bin/env bash
+# dev.sh — Build, stage, and optionally launch Murmur.app
+#
+# Usage:
+#   ./Scripts/dev.sh              # build + stage + launch (default)
+#   ./Scripts/dev.sh --no-run     # build + stage only
+#   ./Scripts/dev.sh --release    # release build + stage + launch
+#   ./Scripts/dev.sh --release --no-run
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 RELEASE=false
+NO_RUN=false
+
 for arg in "$@"; do
   [[ "$arg" == "--release" ]] && RELEASE=true
+  [[ "$arg" == "--no-run"  ]] && NO_RUN=true
 done
 
 if $RELEASE; then
@@ -29,11 +39,13 @@ if [[ -z "$COLI_PATH" || ! -f "$COLI_PATH" ]]; then
   exit 1
 fi
 
+# ── Build ──────────────────────────────────────────────────────────────────────
 pushd "$ROOT_DIR" >/dev/null
 # shellcheck disable=SC2086
 swift build $SWIFT_FLAGS
 popd >/dev/null
 
+# ── Stage bundle ───────────────────────────────────────────────────────────────
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$HELPERS_DIR"
 
@@ -51,7 +63,7 @@ NODE_BIN="$(dirname "$COLI_PATH")/node"
 cp -R "$COLI_PKG_DIR" "$HELPERS_DIR/coli_pkg"
 cp "$NODE_BIN" "$HELPERS_DIR/node"
 
-# Wrapper script that invokes coli in its own package context (so node_modules resolve).
+# Wrapper script so coli resolves its own node_modules correctly.
 cat > "$HELPERS_DIR/coli" <<'COLI_SH'
 #!/bin/sh
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -91,5 +103,16 @@ cat >"$CONTENTS_DIR/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-echo "Staged app bundle at: $APP_DIR"
-echo "Launch with: open '$APP_DIR'"
+echo "Staged: $APP_DIR"
+
+# ── Launch ─────────────────────────────────────────────────────────────────────
+if $NO_RUN; then
+  exit 0
+fi
+
+pkill -f 'Murmur.app/Contents/MacOS/Murmur'   >/dev/null 2>&1 || true
+pkill -f "arm64-apple-macosx/$PROFILE/Murmur" >/dev/null 2>&1 || true
+sleep 0.4
+
+open "$APP_DIR"
+echo "Launched: $APP_DIR"
