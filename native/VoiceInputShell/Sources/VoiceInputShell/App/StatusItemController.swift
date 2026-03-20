@@ -22,14 +22,7 @@ final class StatusItemController: NSObject {
         button.image = NSImage(systemSymbolName: "waveform.circle.fill", accessibilityDescription: "Voice Input")
         button.target = self
         button.action = #selector(handleStatusItemClick(_:))
-        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-    }
-
-    private func makeMenu() -> NSMenu {
-        let menu = NSMenu()
-        menu.addItem(withTitle: "Quit Voice Input", action: #selector(quitApp), keyEquivalent: "q")
-        menu.items.forEach { $0.target = self }
-        return menu
+        button.sendAction(on: [.leftMouseUp])
     }
 
     private func observeRecordingState() {
@@ -49,19 +42,7 @@ final class StatusItemController: NSObject {
 
     @objc
     private func handleStatusItemClick(_ sender: AnyObject?) {
-        guard let event = NSApp.currentEvent else {
-            panelController.togglePanel(relativeTo: statusItem.button)
-            return
-        }
-
-        if event.type == .rightMouseUp {
-            let menu = makeMenu()
-            statusItem.menu = menu
-            statusItem.button?.performClick(nil)
-            statusItem.menu = nil
-        } else {
-            panelController.togglePanel(relativeTo: statusItem.button)
-        }
+        panelController.togglePanel(relativeTo: statusItem.button)
     }
 
     @objc

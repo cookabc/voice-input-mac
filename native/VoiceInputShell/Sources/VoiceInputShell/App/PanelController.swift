@@ -56,6 +56,10 @@ final class PanelController {
     }
 
     private func animatedClose() {
+        // Stop any in-progress recording so it doesn't continue in the background.
+        if viewModel.isRecordingActive {
+            viewModel.stopRecording()
+        }
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = 0.10
             panel.animator().alphaValue = 0

@@ -92,6 +92,18 @@ struct ShellPanelView: View {
                         .background(badgeTint.opacity(0.18), in: Capsule())
 
                     Button {
+                        viewModel.onRequestQuit?()
+                    } label: {
+                        Image(systemName: "power")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(panelMuted)
+                            .frame(width: 24, height: 24)
+                            .background((dark ? Color.white : Color.black).opacity(0.10), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Quit Voice Input")
+
+                    Button {
                         viewModel.onRequestDismiss?()
                     } label: {
                         Image(systemName: "xmark")
@@ -101,11 +113,6 @@ struct ShellPanelView: View {
                             .background((dark ? Color.white : Color.black).opacity(0.10), in: Circle())
                     }
                     .buttonStyle(.plain)
-                    .contextMenu {
-                        Button("Quit Voice Input", role: .destructive) {
-                            viewModel.onRequestQuit?()
-                        }
-                    }
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 16)
