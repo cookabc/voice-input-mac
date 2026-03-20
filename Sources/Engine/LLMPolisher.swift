@@ -42,7 +42,8 @@ actor LLMPolisher {
     }
 
     nonisolated func saveBaseURL(_ url: String) {
-        let v = url.trimmingCharacters(in: .whitespaces)
+        var v = url.trimmingCharacters(in: .whitespaces)
+        while v.hasSuffix("/") { v = String(v.dropLast()) }
         UserDefaults.standard.set(v.isEmpty ? "https://api.openai.com" : v, forKey: Self.baseURLUD)
     }
 
@@ -54,10 +55,11 @@ actor LLMPolisher {
     func polish(text: String) async throws -> String {
         guard let key = apiKey else { throw LLMPolisherError.noApiKey }
 
-        let baseURL = UserDefaults.standard.string(forKey: Self.baseURLUD) ?? "https://api.openai.com"
+        var base = UserDefaults.standard.string(forKey: Self.baseURLUD) ?? "https://api.openai.com"
+        while base.hasSuffix("/") { base = String(base.dropLast()) }
         let model   = UserDefaults.standard.string(forKey: Self.modelUD)   ?? "gpt-4o-mini"
 
-        guard let url = URL(string: "\(baseURL)/v1/chat/completions") else {
+        guard let url = URL(string: "\(base)/v1/chat/completions") else {
             throw LLMPolisherError.unexpectedResponse
         }
 
