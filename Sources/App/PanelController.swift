@@ -19,7 +19,7 @@ final class PanelController {
 
         panel = KeyablePanel(
             contentRect: NSRect(x: 0, y: 0, width: 408, height: 500),
-            styleMask: [.borderless, .nonactivatingPanel],
+            styleMask: [.titled, .fullSizeContentView, .resizable, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
@@ -28,11 +28,17 @@ final class PanelController {
         panel.isReleasedWhenClosed = false
         panel.hidesOnDeactivate = false
         panel.isMovableByWindowBackground = true
+        panel.titlebarAppearsTransparent = true
+        panel.titleVisibility = .hidden
+        panel.standardWindowButton(.closeButton)?.isHidden = true
+        panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        panel.standardWindowButton(.zoomButton)?.isHidden = true
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = true
         panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         panel.becomesKeyOnlyIfNeeded = false
+        panel.minSize = NSSize(width: 380, height: 360)
         panel.contentView = hosting
         viewModel.onRequestDismiss = { [weak self] in
             self?.animatedClose()
