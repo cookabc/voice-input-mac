@@ -52,6 +52,15 @@ struct ShellPanelView: View {
     }
 
     var body: some View {
+        if viewModel.compactMode {
+            CompactFlowBar(
+                viewModel: viewModel,
+                danger: panelDanger,
+                muted: panelMuted,
+                textColor: panelText,
+                background: panelBackground
+            )
+        } else {
         ZStack {
             // ── MAIN PANEL ──
             ZStack {
@@ -405,6 +414,7 @@ struct ShellPanelView: View {
         .onAppear {
             viewModel.refreshRuntime()
         }
+        } // end else (compact mode)
     }
 }
 
@@ -424,6 +434,63 @@ private struct PulsingDot: View {
                     scale = 0.45
                 }
             }
+    }
+}
+
+/// Thin floating pill shown during hotkey auto-flow (recording → polish → paste).
+private struct CompactFlowBar: View {
+    @ObservedObject var viewModel: ShellViewModel
+    let danger: Color
+    let muted: Color
+    let textColor: Color
+    let background: Color
+    @Environment(\.colorScheme) private var colorScheme
+    private var dark: Bool { colorScheme == .dark }
+
+    private var pillBg: Color {
+        dark ? Color(white: 0.14).opacity(0.97) : Color(white: 0.96).opacity(0.97)
+    }
+
+    private var statusColor: Color {
+        if viewModel.isRecordingActive { return danger }
+        if viewModel.autoFlowStatus.hasPrefix("✓") { return Color(red: 0.28, green: 0.72, blue: 0.48) }
+        return muted
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if viewModel.isRecordingActive {
+                WaveformBarsView(level: viewModel.micLevel, color: danger)
+                    .frame(width: 40, height: 28)
+            } else if viewModel.isTranscribing || viewModel.isPolishing {
+                ProgressView()
+                    .scaleEffect(0.65)
+                    .frame(width: 28, height: 28)
+            } else {
+                Image(systemName: "checkmark.circle.fill")
+                    .resizable()
+                    .frame(width: 16, height: 16)
+                    .foregroundStyle(statusColor)
+            }
+
+            Text(viewModel.autoFlowStatus)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(textColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+
+            if viewModel.isRecordingActive {
+                Text(viewModel.recordingTimeString)
+                    .font(.system(size: 12, weight: .regular).monospacedDigit())
+                    .foregroundStyle(muted)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .frame(width: 320, height: 60)
+        .background(pillBg)
+        .clipShape(Capsule())
+        .shadow(color: .black.opacity(0.18), radius: 8, x: 0, y: 3)
     }
 }
 

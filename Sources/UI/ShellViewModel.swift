@@ -7,6 +7,12 @@ final class ShellViewModel: ObservableObject {
     var onRequestDismiss: (() -> Void)?
     var onRequestQuit: (() -> Void)?
     var onRequestFocus: (() -> Void)?
+    /// Called when an auto-flow cycle completes (after paste or on failure).
+    var onAutoFlowComplete: (() -> Void)?
+    /// Set by PanelController; called when the user picks a new shortcut in Settings.
+    var onUpdateHotkey: ((NSEvent.ModifierFlags, UInt16) -> Void)?
+    /// Human-readable hotkey string (e.g. "⌥Space"), kept in sync by PanelController.
+    @Published var hotkeyDisplayString: String = ""
 
     @Published var title = "Voice Input"
     @Published var detail = "Checking the dictation engine…"
@@ -25,6 +31,12 @@ final class ShellViewModel: ObservableObject {
     @Published var showSettings = false
     @Published var recordingElapsed = 0
     @Published var micLevel: Float = 0
+    /// True while an auto-flow (hotkey-initiated) cycle is running.
+    @Published var isAutoFlow: Bool = false
+    /// True while the compact overlay pill is the active UI mode.
+    @Published var compactMode: Bool = false
+    /// Brief human-readable status shown in the compact pill.
+    @Published var autoFlowStatus: String = ""
     private var audioPlayer: AVAudioPlayer?
     private var recordingTimer: Timer?
 
@@ -32,6 +44,60 @@ final class ShellViewModel: ObservableObject {
 
     var isReady: Bool { runtimeBadge == "Ready" }
     var isRecordingActive: Bool { recordingLine == "Recording live" }
+
+    // MARK: - Hotkey / Auto-flow
+
+    /// Called by `HotkeyManager` each time the global shortcut fires.
+    /// First press → start recording; second press → stop + chain polish → paste.
+    func handleHotkey() {
+        if isRecordingActive {
+            // Second press: stop and let the auto-chain do the rest.
+            stopRecording()
+        } else if canStartRecording {
+            isAutoFlow = true
+            compactMode = true
+            autoFlowStatus = "Listening…"
+            startRecording()
+        }
+    }
+
+    private func finishAutoFlow(text: String) {
+        guard !text.isEmpty else {
+            isAutoFlow = false
+            compactMode = false
+            onAutoFlowComplete?()
+            return
+        }
+
+        TextInsertionService.copyToClipboard(text)
+
+        guard TextInsertionService.isAccessibilityTrusted() else {
+            TextInsertionService.promptAccessibility()
+            autoFlowStatus = "Copied (no Accessibility)"
+            isAutoFlow = false
+            compactMode = false
+            onAutoFlowComplete?()
+            return
+        }
+
+        autoFlowStatus = "Pasting…"
+        Task {
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            try? TextInsertionService.simulatePaste()
+            await MainActor.run {
+                self.autoFlowStatus = "✓ Done"
+                self.isAutoFlow = false
+                // Brief pause so user sees "✓ Done" before pill disappears.
+                Task {
+                    try? await Task.sleep(nanoseconds: 350_000_000)
+                    await MainActor.run {
+                        self.compactMode = false
+                        self.onAutoFlowComplete?()
+                    }
+                }
+            }
+        }
+    }
     var canStartRecording: Bool { isReady && !isRecordingActive }
     var canStopRecording: Bool { isRecordingActive }
     var canTranscribe: Bool { !recordingPath.isEmpty && !isRecordingActive && !isTranscribing }
@@ -125,6 +191,7 @@ final class ShellViewModel: ObservableObject {
         core.stopRecording()
         recordingLine = "Recorded"
         actionError = ""
+        if isAutoFlow { autoFlowStatus = "Transcribing…" }
         transcribeLatestRecording()
     }
 
@@ -158,6 +225,15 @@ final class ShellViewModel: ObservableObject {
                     vm.transcriptMeta = meta
                     vm.isTranscribing = false
                     vm.actionError = ""
+                    // Auto-flow: chain straight to polish if API key present, else paste raw.
+                    if vm.isAutoFlow {
+                        if LLMPolisher.shared.apiKey != nil && !text.isEmpty {
+                            vm.autoFlowStatus = "Polishing…"
+                            vm.polishTranscript()
+                        } else {
+                            vm.finishAutoFlow(text: text)
+                        }
+                    }
                 }
             } catch {
                 let message = error.localizedDescription
@@ -255,14 +331,18 @@ final class ShellViewModel: ObservableObject {
         isPolishing = true
         actionError = ""
         let text = transcriptText
+        let dictionary = DictionaryManager.loadEntries()
         let vm = self
 
         Task.detached(priority: .userInitiated) {
             do {
-                let polished = try await LLMPolisher.shared.polish(text: text)
+                let polished = try await LLMPolisher.shared.polish(text: text, dictionary: dictionary)
                 await MainActor.run {
                     vm.polishedText = polished
                     vm.isPolishing = false
+                    if vm.isAutoFlow {
+                        vm.finishAutoFlow(text: polished)
+                    }
                 }
             } catch {
                 await MainActor.run {

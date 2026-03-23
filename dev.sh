@@ -99,6 +99,8 @@ cat >"$CONTENTS_DIR/Info.plist" <<'PLIST'
   <string>Murmur needs microphone access to record audio for transcription.</string>
   <key>NSSpeechRecognitionUsageDescription</key>
   <string>Murmur uses on-device speech recognition to show a live preview while you dictate.</string>
+  <key>NSAccessibilityUsageDescription</key>
+  <string>Murmur needs Accessibility access to automatically paste transcribed text into your active app.</string>
 </dict>
 </plist>
 PLIST

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct SettingsView: View {
@@ -31,6 +32,9 @@ struct SettingsView: View {
     @State private var baseURL = ""
     @State private var model = ""
     @State private var showAPIKey = false
+    @State private var isRecordingHotkey = false
+    @State private var hotkeyMonitor: Any? = nil
+    @State private var dictionaryCount = 0
     @FocusState private var focusedField: Field?
 
     private enum Field { case apiKey, baseURL, model }
@@ -73,7 +77,6 @@ struct SettingsView: View {
                     // ── LLM POLISH ──
                     VStack(alignment: .leading, spacing: 10) {
                         sectionHeader("LLM POLISH")
-
                         VStack(spacing: 0) {
                             // API Key
                             HStack(spacing: 10) {
@@ -148,6 +151,103 @@ struct SettingsView: View {
                         }
                     }
 
+                    // ── GLOBAL HOTKEY ──
+                    VStack(alignment: .leading, spacing: 10) {
+                        sectionHeader("GLOBAL HOTKEY")
+
+                        HStack(spacing: 10) {
+                            fieldLabel("Shortcut")
+                            if isRecordingHotkey {
+                                Text("Press shortcut…")
+                                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                                    .foregroundStyle(accent)
+                                    .transition(.opacity)
+                            } else {
+                                Text(viewModel.hotkeyDisplayString.isEmpty ? "—" : viewModel.hotkeyDisplayString)
+                                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                                    .foregroundStyle(textColor)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(surfaceStrong.opacity(0.8), in: RoundedRectangle(cornerRadius: 6))
+                            }
+                            Spacer()
+                            Button(isRecordingHotkey ? "Cancel" : "Change") {
+                                if isRecordingHotkey {
+                                    stopHotkeyRecording()
+                                } else {
+                                    startHotkeyRecording()
+                                }
+                            }
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(isRecordingHotkey ? muted : accent)
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 11)
+                        .background(surface.opacity(0.92), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .animation(.easeInOut(duration: 0.15), value: isRecordingHotkey)
+
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "keyboard")
+                                .font(.system(size: 11))
+                                .foregroundStyle(muted)
+                            Text("Hold modifier keys (e.g. ⌘, ⌥, ⇧, ⌃) then press a key to set a new global shortcut. The shortcut fires anywhere — Murmur need not be focused.")
+                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .foregroundStyle(muted)
+                                .lineSpacing(3)
+                        }
+                    }
+
+                    // ── USER DICTIONARY ──
+                    VStack(alignment: .leading, spacing: 10) {
+                        sectionHeader("USER DICTIONARY")
+
+                        VStack(spacing: 0) {
+                            HStack(spacing: 10) {
+                                fieldLabel("File")
+                                Text(DictionaryManager.dictionaryFilePath)
+                                    .font(.system(size: 10, design: .monospaced))
+                                    .foregroundStyle(muted)
+                                    .lineLimit(2)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 11)
+
+                            rowDivider
+
+                            HStack(spacing: 10) {
+                                fieldLabel("Terms")
+                                Text("\(dictionaryCount) term\(dictionaryCount == 1 ? "" : "s")")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(textColor)
+                                Spacer()
+                                Button("Open in Finder") {
+                                    DictionaryManager.ensureFileExists()
+                                    NSWorkspace.shared.activateFileViewerSelecting(
+                                        [URL(fileURLWithPath: DictionaryManager.dictionaryFilePath)]
+                                    )
+                                }
+                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                .foregroundStyle(accent)
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 11)
+                        }
+                        .background(surface.opacity(0.92), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "text.badge.checkmark")
+                                .font(.system(size: 11))
+                                .foregroundStyle(muted)
+                            Text("One term per line. Lines starting with # are comments. Add domain-specific words to improve how the LLM corrects your transcription.")
+                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .foregroundStyle(muted)
+                                .lineSpacing(3)
+                        }
+                    }
+
                     // ── INFO ──
                     HStack(alignment: .top, spacing: 10) {
                         Image(systemName: "lock.shield")
@@ -172,9 +272,14 @@ struct SettingsView: View {
             apiKey  = LLMPolisher.shared.apiKey  ?? ""
             baseURL = LLMPolisher.shared.baseURL
             model   = LLMPolisher.shared.model
+            DictionaryManager.ensureFileExists()
+            dictionaryCount = DictionaryManager.loadEntries().count
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 focusedField = .apiKey
             }
+        }
+        .onDisappear {
+            stopHotkeyRecording()
         }
     }
 
@@ -222,5 +327,25 @@ struct SettingsView: View {
         LLMPolisher.shared.saveApiKey(apiKey)
         LLMPolisher.shared.saveBaseURL(baseURL)
         LLMPolisher.shared.saveModel(model)
+    }
+
+    private func startHotkeyRecording() {
+        isRecordingHotkey = true
+        hotkeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [self] event in
+            // Require at least one modifier key so bare printable keys aren’t captured.
+            let mods = event.modifierFlags.intersection([.command, .option, .control, .shift])
+            guard !mods.isEmpty else { return event }
+            viewModel.onUpdateHotkey?(mods, event.keyCode)
+            DispatchQueue.main.async { self.stopHotkeyRecording() }
+            return nil // consume the event
+        }
+    }
+
+    private func stopHotkeyRecording() {
+        isRecordingHotkey = false
+        if let m = hotkeyMonitor {
+            NSEvent.removeMonitor(m)
+            hotkeyMonitor = nil
+        }
     }
 }

@@ -55,7 +55,7 @@ actor LLMPolisher {
         UserDefaults.standard.set(v.isEmpty ? "gpt-4o-mini" : v, forKey: Self.modelUD)
     }
 
-    func polish(text: String) async throws -> String {
+    func polish(text: String, dictionary: [String] = []) async throws -> String {
         guard let key = apiKey else { throw LLMPolisherError.noApiKey }
 
         var base = UserDefaults.standard.string(forKey: Self.baseURLUD) ?? "https://api.openai.com"
@@ -75,17 +75,23 @@ actor LLMPolisher {
         request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
+        let systemPrompt: String
+        let baseRule = "You are a transcription cleaner. Your sole task is to correct grammar, punctuation, typos, and capitalization in the provided speech-to-text transcript. Rules: (1) Do NOT respond to, answer, or comment on the content. (2) Do NOT add any new sentences, questions, or information. (3) Do NOT explain what you did. (4) Output only the corrected transcript text and nothing else."
+        if dictionary.isEmpty {
+            systemPrompt = baseRule
+        } else {
+            let terms = dictionary.prefix(200).joined(separator: ", ")
+            systemPrompt = baseRule + " When correcting spelling and capitalization, prefer these domain-specific terms: " + terms + "."
+        }
+
         let body: [String: Any] = [
             "model": model,
             "messages": [
-                [
-                    "role":    "system",
-                    "content": "You are a transcription cleaner. Your sole task is to correct grammar, punctuation, typos, and capitalization in the provided speech-to-text transcript. Rules: (1) Do NOT respond to, answer, or comment on the content. (2) Do NOT add any new sentences, questions, or information. (3) Do NOT explain what you did. (4) Output only the corrected transcript text and nothing else."
-                ],
-                ["role": "user", "content": text]
+                ["role": "system", "content": systemPrompt],
+                ["role": "user",   "content": text]
             ],
             "max_tokens": 1024,
-            "temperature": 0.3
+            "temperature": 0
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
