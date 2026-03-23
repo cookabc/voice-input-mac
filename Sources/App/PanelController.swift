@@ -20,7 +20,7 @@ final class PanelController {
     private var isCompact = false
 
     init() {
-        let rootView = ShellPanelView(viewModel: viewModel)
+        let rootView = ShellPanelView(viewModel: viewModel).ignoresSafeArea()
         let hosting = NSHostingView(rootView: rootView)
 
         panel = KeyablePanel(

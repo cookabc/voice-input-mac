@@ -91,6 +91,17 @@ struct ShellPanelView: View {
                         Text("Dictate & polish")
                             .font(.system(size: 11, weight: .medium, design: .rounded))
                             .foregroundStyle(panelMuted)
+                        // Hotkey hint
+                        if !viewModel.hotkeyDisplayString.isEmpty {
+                            HStack(spacing: 4) {
+                                Text(viewModel.hotkeyDisplayString)
+                                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(panelAccent)
+                                Text("auto-flow")
+                                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                                    .foregroundStyle(panelMuted)
+                            }
+                        }
                     }
 
                     Spacer()
