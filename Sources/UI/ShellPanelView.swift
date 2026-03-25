@@ -347,6 +347,17 @@ struct ShellPanelView: View {
                                     .tint(panelMuted)
                                     .disabled(viewModel.transcriptText.isEmpty)
 
+                                    Button {
+                                        viewModel.toggleTTS()
+                                    } label: {
+                                        Label(viewModel.isSpeakingTTS ? "Stop" : "Listen",
+                                              systemImage: viewModel.isSpeakingTTS ? "stop.fill" : "speaker.wave.2.fill")
+                                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .tint(viewModel.isSpeakingTTS ? panelDanger : panelAccentSoft)
+                                    .disabled(viewModel.transcriptText.isEmpty && viewModel.polishedText.isEmpty)
+
                                     Spacer()
 
                                     Button {
