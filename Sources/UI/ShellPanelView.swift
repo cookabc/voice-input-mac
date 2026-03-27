@@ -365,6 +365,7 @@ struct ShellPanelView: View {
                                     }
                                     .padding(.horizontal, 14)
                                     .padding(.vertical, 10)
+                                    .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
 
@@ -375,8 +376,9 @@ struct ShellPanelView: View {
                                         .frame(height: 1)
                                         .padding(.horizontal, 12)
 
-                                    VStack(alignment: .leading, spacing: 10) {
+                                    VStack(alignment: .leading, spacing: 14) {
                                         // ASR Provider
+                                        VStack(alignment: .leading, spacing: 8) {
                                         HStack(spacing: 8) {
                                             Text("ASR")
                                                 .font(.system(size: 10, weight: .bold, design: .rounded))
@@ -416,15 +418,16 @@ struct ShellPanelView: View {
                                                 )
                                             }
                                         }
+                                        } // end ASR VStack
 
                                         // Command Mode
+                                        VStack(alignment: .leading, spacing: 8) {
                                         HStack(spacing: 8) {
                                             Text("MODE")
                                                 .font(.system(size: 10, weight: .bold, design: .rounded))
                                                 .foregroundStyle(panelMuted)
                                             Spacer()
                                         }
-                                        .padding(.top, 2)
 
                                         HStack(spacing: 6) {
                                             Button {
@@ -479,6 +482,7 @@ struct ShellPanelView: View {
                                                 )
                                             }
                                         }
+                                        } // end MODE VStack
 
                                         // VAD Toggle
                                         HStack(spacing: 8) {
@@ -501,10 +505,9 @@ struct ShellPanelView: View {
                                             .controlSize(.mini)
                                             .labelsHidden()
                                         }
-                                        .padding(.top, 2)
                                     }
                                     .padding(.horizontal, 14)
-                                    .padding(.vertical, 10)
+                                    .padding(.vertical, 12)
                                     .transition(.opacity.combined(with: .move(edge: .top)))
                                 }
                             }
@@ -799,7 +802,7 @@ struct ShellPanelView: View {
         }
         }
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .frame(minWidth: 380, idealWidth: 408, maxWidth: .infinity, minHeight: 360, idealHeight: 500, maxHeight: .infinity)
+        .frame(minWidth: 380, idealWidth: 408, maxWidth: .infinity, maxHeight: .infinity)
         .foregroundStyle(panelText)
         .animation(.easeInOut(duration: 0.25), value: viewModel.showSettings)
         .animation(.easeInOut(duration: 0.25), value: viewModel.showHistory)

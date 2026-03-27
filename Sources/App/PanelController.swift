@@ -16,7 +16,7 @@ final class PanelController {
 
     // Compact panel size used during hotkey auto-flow
     private static let compactSize = NSSize(width: 320, height: 60)
-    private static let fullSize    = NSSize(width: 408, height: 500)
+    private static let fullSize    = NSSize(width: 408, height: 620)
     private var isCompact = false
 
     init() {
@@ -24,7 +24,7 @@ final class PanelController {
         let hosting = NSHostingView(rootView: rootView)
 
         panel = KeyablePanel(
-            contentRect: NSRect(x: 0, y: 0, width: 408, height: 500),
+            contentRect: NSRect(x: 0, y: 0, width: 408, height: 620),
             styleMask: [.titled, .fullSizeContentView, .resizable, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -100,7 +100,7 @@ final class PanelController {
 
     func showPanel(relativeTo button: NSStatusBarButton?) {
         isCompact = false
-        panel.minSize = NSSize(width: 380, height: 360)
+        panel.minSize = NSSize(width: 380, height: 420)
         resizePanel(to: Self.fullSize, animated: false)
         positionPanel(relativeTo: button)
         panel.alphaValue = 0
