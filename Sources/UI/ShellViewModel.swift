@@ -628,11 +628,27 @@ final class ShellViewModel: ObservableObject {
         recoveryActions: [RecoveryAction] = [],
         markFailure: Bool = true
     ) {
-        actionError = message
+        actionError = Self.sanitizeErrorMessage(message)
         self.recoveryActions = recoveryActions
         if markFailure {
-            setFlowStage(.failed, line: "Action failed", hint: message)
+            setFlowStage(.failed, line: "Action failed")
         }
+    }
+
+    /// Strip internal file paths and C++ source references from error messages
+    /// so users see a clean, actionable description.
+    private static func sanitizeErrorMessage(_ message: String) -> String {
+        var result = message
+        // Strip sherpa-onnx / C++ source file paths (e.g. /Users/runner/work/.../file.cc:Function:123)
+        let pathPattern = #"/[\w/.-]+\.(cc|cpp|h|c):[\w]+:\d+\s*"#
+        if let regex = try? NSRegularExpression(pattern: pathPattern) {
+            result = regex.stringByReplacingMatches(
+                in: result,
+                range: NSRange(result.startIndex..., in: result),
+                withTemplate: ""
+            )
+        }
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func clearActionError() {

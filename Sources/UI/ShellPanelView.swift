@@ -3,6 +3,7 @@ import SwiftUI
 struct ShellPanelView: View {
     @ObservedObject var viewModel: ShellViewModel
     @Environment(\.colorScheme) private var colorScheme
+    @State private var showProviderConfig = false
     private var dark: Bool { colorScheme == .dark }
 
     private var panelBackground: Color {
@@ -80,7 +81,7 @@ struct ShellPanelView: View {
                 .fill(panelAccentSoft.opacity(dark ? 0.11 : 0.07))
                 .frame(width: 180, height: 180)
                 .blur(radius: 32)
-                .offset(x: -140, y: 170)
+                .offset(x: -140, y: 310)
 
             VStack(spacing: 0) {
                 // ── PINNED HEADER ──
@@ -229,215 +230,287 @@ struct ShellPanelView: View {
                             .transition(.opacity.combined(with: .move(edge: .top)))
                         }
 
-                        VStack(alignment: .leading, spacing: 8) {
-                            // ── LLM status row ──
-                            HStack(spacing: 8) {
-                                Image(systemName: viewModel.llmHint.isEmpty ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(viewModel.llmHint.isEmpty ? Color.green.opacity(0.8) : Color.orange.opacity(0.9))
-                                Text(viewModel.llmLine)
-                                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                                    .foregroundStyle(panelText)
-                                    .lineLimit(2)
-                                Spacer()
-                                Button("Refresh") {
-                                    Task { @MainActor in
-                                        await viewModel.refreshLLMRuntime()
-                                    }
-                                }
-                                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                .buttonStyle(.plain)
-                                .foregroundStyle(panelAccent)
-
-                                if !viewModel.llmHint.isEmpty {
-                                    Button("Fix") {
-                                        viewModel.openSettings()
+                        // ── Diagnostics: compact when healthy, full card when issues ──
+                        if !viewModel.llmHint.isEmpty || viewModel.flowStage == .failed || !viewModel.metrics.stages.isEmpty {
+                            // Full diagnostics card (issues or post-run metrics)
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: viewModel.llmHint.isEmpty ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundStyle(viewModel.llmHint.isEmpty ? Color.green.opacity(0.8) : Color.orange.opacity(0.9))
+                                    Text(viewModel.llmLine)
+                                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                                        .foregroundStyle(panelText)
+                                        .lineLimit(2)
+                                    Spacer()
+                                    Button("Refresh") {
+                                        Task { @MainActor in
+                                            await viewModel.refreshLLMRuntime()
+                                        }
                                     }
                                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                                     .buttonStyle(.plain)
-                                    .foregroundStyle(panelAccentSoft)
+                                    .foregroundStyle(panelAccent)
+
+                                    if !viewModel.llmHint.isEmpty {
+                                        Button("Fix") {
+                                            viewModel.openSettings()
+                                        }
+                                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                        .buttonStyle(.plain)
+                                        .foregroundStyle(panelAccentSoft)
+                                    }
+                                }
+
+                                if !viewModel.llmHint.isEmpty {
+                                    Text(viewModel.llmHint)
+                                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                        .foregroundStyle(panelMuted)
+                                }
+
+                                HStack(spacing: 8) {
+                                    Image(systemName: viewModel.flowStage == .failed ? "xmark.octagon.fill" : "dot.circle.fill")
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .foregroundStyle(viewModel.flowStage == .failed ? panelDanger : panelAccentSoft)
+                                    Text(viewModel.flowStage.label)
+                                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                                        .foregroundStyle(viewModel.flowStage == .failed ? panelDanger : panelAccentSoft)
+                                    Text("·")
+                                        .foregroundStyle(panelMuted.opacity(0.4))
+                                    Text(viewModel.flowLine)
+                                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                                        .foregroundStyle(panelText)
+                                        .lineLimit(1)
+                                    Spacer()
+                                }
+
+                                if !viewModel.flowHint.isEmpty {
+                                    Text(viewModel.flowHint)
+                                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                        .foregroundStyle(panelMuted)
+                                }
+
+                                if !viewModel.metrics.stages.isEmpty {
+                                    Text(viewModel.metrics.stageSummaryText)
+                                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                        .foregroundStyle(panelMuted.opacity(0.7))
                                 }
                             }
-
-                            if !viewModel.llmHint.isEmpty {
-                                Text(viewModel.llmHint)
-                                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                                    .foregroundStyle(panelMuted)
-                            }
-
-                            // ── Flow status row ──
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(panelSurface.opacity(0.92), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        } else {
+                            // Compact status bar (healthy state)
                             HStack(spacing: 8) {
-                                Image(systemName: viewModel.flowStage == .failed ? "xmark.octagon.fill" : "dot.circle.fill")
+                                Image(systemName: "checkmark.circle.fill")
                                     .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(viewModel.flowStage == .failed ? panelDanger : panelAccentSoft)
-                                Text(viewModel.flowStage.label)
-                                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                                    .foregroundStyle(viewModel.flowStage == .failed ? panelDanger : panelAccentSoft)
-                                Text("·")
-                                    .foregroundStyle(panelMuted.opacity(0.4))
+                                    .foregroundStyle(Color.green.opacity(0.8))
                                 Text(viewModel.flowLine)
                                     .font(.system(size: 11, weight: .medium, design: .rounded))
                                     .foregroundStyle(panelText)
                                     .lineLimit(1)
                                 Spacer()
-                            }
-
-                            if !viewModel.flowHint.isEmpty {
-                                Text(viewModel.flowHint)
-                                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                                    .foregroundStyle(panelMuted)
-                            }
-
-                            if !viewModel.metrics.stages.isEmpty {
-                                Text(viewModel.metrics.stageSummaryText)
-                                    .font(.system(size: 10, weight: .medium, design: .monospaced))
-                                    .foregroundStyle(panelMuted.opacity(0.7))
-                            }
-                        }
-                        .padding(12)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(panelSurface.opacity(0.92), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                        // ── ASR Provider + Command Mode + VAD ──
-                        VStack(alignment: .leading, spacing: 10) {
-                            // ASR Provider
-                            HStack(spacing: 8) {
-                                Image(systemName: "waveform.badge.mic")
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(panelAccentSoft)
-                                Text("ASR")
-                                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                                    .foregroundStyle(panelMuted)
-                                Spacer()
-                            }
-                            HStack(spacing: 6) {
-                                ForEach(viewModel.asrRegistry.providers, id: \.id) { provider in
-                                    Button {
-                                        viewModel.asrRegistry.selectedID = provider.id
-                                    } label: {
-                                        VStack(spacing: 2) {
-                                            Text(provider.displayName)
-                                                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                            Text(provider.subtitle)
-                                                .font(.system(size: 9, weight: .medium, design: .rounded))
-                                                .foregroundStyle(panelMuted)
-                                        }
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 6)
-                                        .background(
-                                            provider.id == viewModel.asrRegistry.selectedID
-                                                ? panelAccent.opacity(0.18)
-                                                : panelSurfaceStrong.opacity(0.8),
-                                            in: Capsule()
-                                        )
-                                        .overlay(
-                                            provider.id == viewModel.asrRegistry.selectedID
-                                                ? Capsule().stroke(panelAccent.opacity(0.5), lineWidth: 1)
-                                                : nil
-                                        )
-                                    }
-                                    .buttonStyle(.plain)
-                                    .foregroundStyle(
-                                        provider.id == viewModel.asrRegistry.selectedID
-                                            ? panelAccent : panelText.opacity(0.7)
-                                    )
-                                }
-                            }
-
-                            // Command Mode
-                            HStack(spacing: 8) {
-                                Image(systemName: "command")
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(Color(red: 0.62, green: 0.46, blue: 0.86))
-                                Text("MODE")
-                                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                                    .foregroundStyle(panelMuted)
-                                Spacer()
-                            }
-                            .padding(.top, 4)
-
-                            HStack(spacing: 6) {
                                 Button {
-                                    viewModel.commandMode.clearCommand()
-                                } label: {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "text.badge.checkmark")
-                                            .font(.system(size: 10, weight: .semibold))
-                                        Text("Clean")
-                                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                    Task { @MainActor in
+                                        await viewModel.refreshLLMRuntime()
                                     }
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .background(
-                                        viewModel.commandMode.activeCommand == nil
-                                            ? Color(red: 0.62, green: 0.46, blue: 0.86).opacity(0.18)
-                                            : panelSurfaceStrong.opacity(0.8),
-                                        in: Capsule()
-                                    )
+                                } label: {
+                                    Text("Refresh")
+                                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                        .foregroundStyle(panelAccent)
                                 }
                                 .buttonStyle(.plain)
-                                .foregroundStyle(
-                                    viewModel.commandMode.activeCommand == nil
-                                        ? Color(red: 0.62, green: 0.46, blue: 0.86) : panelText.opacity(0.7)
-                                )
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(panelSurface.opacity(0.92), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
 
-                                ForEach(viewModel.commandMode.builtInCommands) { cmd in
-                                    Button {
-                                        viewModel.commandMode.selectCommand(cmd)
-                                    } label: {
-                                        HStack(spacing: 4) {
-                                            Image(systemName: cmd.icon)
-                                                .font(.system(size: 10, weight: .semibold))
-                                            Text(cmd.name)
-                                                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                        }
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 6)
-                                        .background(
-                                            viewModel.commandMode.activeCommand?.id == cmd.id
-                                                ? Color(red: 0.62, green: 0.46, blue: 0.86).opacity(0.18)
-                                                : panelSurfaceStrong.opacity(0.8),
-                                            in: Capsule()
-                                        )
+                        // ── ASR / MODE / VAD — collapsible config strip ──
+                        // Collapse during active recording/transcribing.
+                        if !viewModel.isRecordingActive && !viewModel.isTranscribing {
+                            VStack(alignment: .leading, spacing: 0) {
+                                // Summary row (always visible)
+                                Button {
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        showProviderConfig.toggle()
                                     }
-                                    .buttonStyle(.plain)
-                                    .foregroundStyle(
-                                        viewModel.commandMode.activeCommand?.id == cmd.id
-                                            ? Color(red: 0.62, green: 0.46, blue: 0.86) : panelText.opacity(0.7)
-                                    )
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "waveform.badge.mic")
+                                            .font(.system(size: 10, weight: .semibold))
+                                            .foregroundStyle(panelAccentSoft)
+                                        Text(viewModel.asrRegistry.activeProvider?.displayName ?? "ASR")
+                                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                            .foregroundStyle(panelAccent)
+                                        Text("·")
+                                            .foregroundStyle(panelMuted.opacity(0.4))
+                                        Image(systemName: viewModel.commandMode.activeCommand?.icon ?? "text.badge.checkmark")
+                                            .font(.system(size: 9, weight: .semibold))
+                                            .foregroundStyle(Color(red: 0.62, green: 0.46, blue: 0.86))
+                                        Text(viewModel.commandMode.activeCommand?.name ?? "Clean")
+                                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                            .foregroundStyle(Color(red: 0.62, green: 0.46, blue: 0.86))
+                                        if ConfigManager.shared.config.vadEnabled {
+                                            Text("·")
+                                                .foregroundStyle(panelMuted.opacity(0.4))
+                                            Text("VAD")
+                                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                                .foregroundStyle(panelAccentSoft)
+                                        }
+                                        Spacer()
+                                        Image(systemName: showProviderConfig ? "chevron.up" : "chevron.down")
+                                            .font(.system(size: 9, weight: .bold))
+                                            .foregroundStyle(panelMuted)
+                                    }
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 10)
+                                }
+                                .buttonStyle(.plain)
+
+                                // Expanded config (on demand)
+                                if showProviderConfig {
+                                    Rectangle()
+                                        .fill(panelMuted.opacity(0.15))
+                                        .frame(height: 1)
+                                        .padding(.horizontal, 12)
+
+                                    VStack(alignment: .leading, spacing: 10) {
+                                        // ASR Provider
+                                        HStack(spacing: 8) {
+                                            Text("ASR")
+                                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                                .foregroundStyle(panelMuted)
+                                            Spacer()
+                                        }
+                                        HStack(spacing: 6) {
+                                            ForEach(viewModel.asrRegistry.providers, id: \.id) { provider in
+                                                Button {
+                                                    viewModel.asrRegistry.selectedID = provider.id
+                                                } label: {
+                                                    VStack(spacing: 2) {
+                                                        Text(provider.displayName)
+                                                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                                        Text(provider.subtitle)
+                                                            .font(.system(size: 9, weight: .medium, design: .rounded))
+                                                            .foregroundStyle(panelMuted)
+                                                    }
+                                                    .padding(.horizontal, 10)
+                                                    .padding(.vertical, 6)
+                                                    .background(
+                                                        provider.id == viewModel.asrRegistry.selectedID
+                                                            ? panelAccent.opacity(0.18)
+                                                            : panelSurfaceStrong.opacity(0.8),
+                                                        in: Capsule()
+                                                    )
+                                                    .overlay(
+                                                        provider.id == viewModel.asrRegistry.selectedID
+                                                            ? Capsule().stroke(panelAccent.opacity(0.5), lineWidth: 1)
+                                                            : nil
+                                                    )
+                                                }
+                                                .buttonStyle(.plain)
+                                                .foregroundStyle(
+                                                    provider.id == viewModel.asrRegistry.selectedID
+                                                        ? panelAccent : panelText.opacity(0.7)
+                                                )
+                                            }
+                                        }
+
+                                        // Command Mode
+                                        HStack(spacing: 8) {
+                                            Text("MODE")
+                                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                                .foregroundStyle(panelMuted)
+                                            Spacer()
+                                        }
+                                        .padding(.top, 2)
+
+                                        HStack(spacing: 6) {
+                                            Button {
+                                                viewModel.commandMode.clearCommand()
+                                            } label: {
+                                                HStack(spacing: 4) {
+                                                    Image(systemName: "text.badge.checkmark")
+                                                        .font(.system(size: 10, weight: .semibold))
+                                                    Text("Clean")
+                                                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                                }
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 6)
+                                                .background(
+                                                    viewModel.commandMode.activeCommand == nil
+                                                        ? Color(red: 0.62, green: 0.46, blue: 0.86).opacity(0.18)
+                                                        : panelSurfaceStrong.opacity(0.8),
+                                                    in: Capsule()
+                                                )
+                                            }
+                                            .buttonStyle(.plain)
+                                            .foregroundStyle(
+                                                viewModel.commandMode.activeCommand == nil
+                                                    ? Color(red: 0.62, green: 0.46, blue: 0.86) : panelText.opacity(0.7)
+                                            )
+
+                                            ForEach(viewModel.commandMode.builtInCommands) { cmd in
+                                                Button {
+                                                    viewModel.commandMode.selectCommand(cmd)
+                                                } label: {
+                                                    HStack(spacing: 4) {
+                                                        Image(systemName: cmd.icon)
+                                                            .font(.system(size: 10, weight: .semibold))
+                                                        Text(cmd.name)
+                                                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                                            .lineLimit(1)
+                                                            .fixedSize(horizontal: true, vertical: false)
+                                                    }
+                                                    .padding(.horizontal, 10)
+                                                    .padding(.vertical, 6)
+                                                    .background(
+                                                        viewModel.commandMode.activeCommand?.id == cmd.id
+                                                            ? Color(red: 0.62, green: 0.46, blue: 0.86).opacity(0.18)
+                                                            : panelSurfaceStrong.opacity(0.8),
+                                                        in: Capsule()
+                                                    )
+                                                }
+                                                .buttonStyle(.plain)
+                                                .foregroundStyle(
+                                                    viewModel.commandMode.activeCommand?.id == cmd.id
+                                                        ? Color(red: 0.62, green: 0.46, blue: 0.86) : panelText.opacity(0.7)
+                                                )
+                                            }
+                                        }
+
+                                        // VAD Toggle
+                                        HStack(spacing: 8) {
+                                            Text("VAD")
+                                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                                .foregroundStyle(panelMuted)
+                                            Text("(experimental)")
+                                                .font(.system(size: 9, weight: .medium, design: .rounded))
+                                                .foregroundStyle(panelMuted.opacity(0.6))
+                                            Spacer()
+                                            Toggle("", isOn: Binding(
+                                                get: { ConfigManager.shared.config.vadEnabled },
+                                                set: { newVal in
+                                                    var cfg = ConfigManager.shared.config
+                                                    cfg.vadEnabled = newVal
+                                                    ConfigManager.shared.saveConfig(cfg)
+                                                }
+                                            ))
+                                            .toggleStyle(.switch)
+                                            .controlSize(.mini)
+                                            .labelsHidden()
+                                        }
+                                        .padding(.top, 2)
+                                    }
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 10)
+                                    .transition(.opacity.combined(with: .move(edge: .top)))
                                 }
                             }
-
-                            // VAD Toggle
-                            HStack(spacing: 8) {
-                                Image(systemName: "ear")
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(panelMuted)
-                                Text("VAD")
-                                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                                    .foregroundStyle(panelMuted)
-                                Text("(experimental)")
-                                    .font(.system(size: 9, weight: .medium, design: .rounded))
-                                    .foregroundStyle(panelMuted.opacity(0.6))
-                                Spacer()
-
-                                Toggle("", isOn: Binding(
-                                    get: { ConfigManager.shared.config.vadEnabled },
-                                    set: { newVal in
-                                        var cfg = ConfigManager.shared.config
-                                        cfg.vadEnabled = newVal
-                                        ConfigManager.shared.saveConfig(cfg)
-                                    }
-                                ))
-                                .toggleStyle(.switch)
-                                .controlSize(.mini)
-                                .labelsHidden()
-                            }
-                            .padding(.top, 4)
-                        }
-                        .padding(12)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(panelSurface.opacity(0.92), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(panelSurface.opacity(0.92), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        } // end ASR/MODE/VAD collapse
 
                         // ── Unified Record / Clip card ──
                         ZStack {
