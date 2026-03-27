@@ -31,6 +31,9 @@ struct SettingsView: View {
     @State private var apiKey = ""
     @State private var baseURL = ""
     @State private var model = ""
+    @State private var savedAPIKey = ""
+    @State private var savedBaseURL = ""
+    @State private var savedModel = ""
     @State private var showAPIKey = false
     @State private var isRecordingHotkey = false
     @State private var hotkeyMonitor: Any? = nil
@@ -45,8 +48,7 @@ struct SettingsView: View {
             // ── HEADER ──
             HStack(alignment: .center) {
                 Button {
-                    save()
-                    viewModel.closeSettings()
+                    discardAndClose()
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "chevron.left")
@@ -65,7 +67,16 @@ struct SettingsView: View {
                     .foregroundStyle(textColor)
 
                 Spacer()
-                Color.clear.frame(width: 44, height: 1)
+
+                Button {
+                    save()
+                } label: {
+                    Text("Save")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(hasLLMChanges ? accent : muted.opacity(0.4))
+                }
+                .buttonStyle(.plain)
+                .disabled(!hasLLMChanges)
             }
             .padding(.horizontal, 18)
             .padding(.top, 16)
@@ -473,6 +484,9 @@ struct SettingsView: View {
             apiKey  = LLMPolisher.shared.apiKey  ?? ""
             baseURL = LLMPolisher.shared.baseURL
             model   = LLMPolisher.shared.model
+            savedAPIKey  = apiKey
+            savedBaseURL = baseURL
+            savedModel   = model
             DictionaryManager.ensureFileExists()
             dictionaryCount = DictionaryManager.loadEntries().count
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -524,10 +538,24 @@ struct SettingsView: View {
         .buttonStyle(.plain)
     }
 
+    private var hasLLMChanges: Bool {
+        apiKey != savedAPIKey || baseURL != savedBaseURL || model != savedModel
+    }
+
     private func save() {
         LLMPolisher.shared.saveApiKey(apiKey)
         LLMPolisher.shared.saveBaseURL(baseURL)
         LLMPolisher.shared.saveModel(model)
+        savedAPIKey  = apiKey
+        savedBaseURL = baseURL
+        savedModel   = model
+    }
+
+    private func discardAndClose() {
+        apiKey  = savedAPIKey
+        baseURL = savedBaseURL
+        model   = savedModel
+        viewModel.closeSettings()
     }
 
     private func startHotkeyRecording() {
