@@ -184,6 +184,89 @@ struct SettingsView: View {
                         .background(surface.opacity(0.92), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
 
+                    // ── SPEECH ENGINE ──
+                    VStack(alignment: .leading, spacing: 10) {
+                        sectionHeader("SPEECH ENGINE")
+
+                        VStack(spacing: 0) {
+                            // ASR Provider
+                            HStack(spacing: 10) {
+                                fieldLabel("Engine")
+                                Spacer()
+                                HStack(spacing: 6) {
+                                    ForEach(viewModel.asrRegistry.providers, id: \.id) { provider in
+                                        Button {
+                                            viewModel.asrRegistry.selectedID = provider.id
+                                        } label: {
+                                            VStack(spacing: 1) {
+                                                Text(provider.displayName)
+                                                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                                Text(provider.subtitle)
+                                                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                                                    .foregroundStyle(muted)
+                                            }
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 5)
+                                            .background(
+                                                provider.id == viewModel.asrRegistry.selectedID
+                                                    ? accent.opacity(0.18)
+                                                    : surfaceStrong.opacity(0.8),
+                                                in: Capsule()
+                                            )
+                                            .overlay(
+                                                provider.id == viewModel.asrRegistry.selectedID
+                                                    ? Capsule().stroke(accent.opacity(0.5), lineWidth: 1)
+                                                    : nil
+                                            )
+                                        }
+                                        .buttonStyle(.plain)
+                                        .foregroundStyle(
+                                            provider.id == viewModel.asrRegistry.selectedID
+                                                ? accent : textColor.opacity(0.7)
+                                        )
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 11)
+
+                            rowDivider
+
+                            // VAD Toggle
+                            HStack(spacing: 10) {
+                                fieldLabel("VAD")
+                                Text("Voice activity detection")
+                                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                                    .foregroundStyle(muted)
+                                Spacer()
+                                Toggle("", isOn: Binding(
+                                    get: { ConfigManager.shared.config.vadEnabled },
+                                    set: { newVal in
+                                        var cfg = ConfigManager.shared.config
+                                        cfg.vadEnabled = newVal
+                                        ConfigManager.shared.saveConfig(cfg)
+                                    }
+                                ))
+                                .toggleStyle(.switch)
+                                .controlSize(.mini)
+                                .labelsHidden()
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 11)
+                        }
+                        .background(surface.opacity(0.92), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "waveform.badge.mic")
+                                .font(.system(size: 11))
+                                .foregroundStyle(muted)
+                            Text("SenseVoice supports Chinese, English, Japanese, Korean, and Cantonese. Whisper is English only. VAD (experimental) auto-detects speech boundaries.")
+                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .foregroundStyle(muted)
+                                .lineSpacing(3)
+                        }
+                    }
+
                     // ── GLOBAL HOTKEY ──
                     VStack(alignment: .leading, spacing: 10) {
                         sectionHeader("GLOBAL HOTKEY")

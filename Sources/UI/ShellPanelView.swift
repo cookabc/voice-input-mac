@@ -3,7 +3,6 @@ import SwiftUI
 struct ShellPanelView: View {
     @ObservedObject var viewModel: ShellViewModel
     @Environment(\.colorScheme) private var colorScheme
-    @State private var showProviderConfig = false
     private var dark: Bool { colorScheme == .dark }
 
     private var panelBackground: Color {
@@ -326,194 +325,32 @@ struct ShellPanelView: View {
                             .background(panelSurface.opacity(0.92), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                         }
 
-                        // ── ASR / MODE / VAD — collapsible config strip ──
-                        // Collapse during active recording/transcribing.
+                        // ── MODE chips (inline, always visible when idle) ──
                         if !viewModel.isRecordingActive && !viewModel.isTranscribing {
-                            VStack(alignment: .leading, spacing: 0) {
-                                // Summary row (always visible)
-                                Button {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        showProviderConfig.toggle()
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 6) {
+                                    modeChip(
+                                        icon: "text.badge.checkmark",
+                                        label: "Clean",
+                                        isActive: viewModel.commandMode.activeCommand == nil
+                                    ) {
+                                        viewModel.commandMode.clearCommand()
                                     }
-                                } label: {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "waveform.badge.mic")
-                                            .font(.system(size: 10, weight: .semibold))
-                                            .foregroundStyle(panelAccentSoft)
-                                        Text(viewModel.asrRegistry.activeProvider?.displayName ?? "ASR")
-                                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                            .foregroundStyle(panelAccent)
-                                        Text("·")
-                                            .foregroundStyle(panelMuted.opacity(0.4))
-                                        Image(systemName: viewModel.commandMode.activeCommand?.icon ?? "text.badge.checkmark")
-                                            .font(.system(size: 9, weight: .semibold))
-                                            .foregroundStyle(Color(red: 0.62, green: 0.46, blue: 0.86))
-                                        Text(viewModel.commandMode.activeCommand?.name ?? "Clean")
-                                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                            .foregroundStyle(Color(red: 0.62, green: 0.46, blue: 0.86))
-                                        if ConfigManager.shared.config.vadEnabled {
-                                            Text("·")
-                                                .foregroundStyle(panelMuted.opacity(0.4))
-                                            Text("VAD")
-                                                .font(.system(size: 10, weight: .bold, design: .rounded))
-                                                .foregroundStyle(panelAccentSoft)
+
+                                    ForEach(viewModel.commandMode.builtInCommands) { cmd in
+                                        modeChip(
+                                            icon: cmd.icon,
+                                            label: cmd.name,
+                                            isActive: viewModel.commandMode.activeCommand?.id == cmd.id
+                                        ) {
+                                            viewModel.commandMode.selectCommand(cmd)
                                         }
-                                        Spacer()
-                                        Image(systemName: showProviderConfig ? "chevron.up" : "chevron.down")
-                                            .font(.system(size: 9, weight: .bold))
-                                            .foregroundStyle(panelMuted)
                                     }
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 10)
-                                    .contentShape(Rectangle())
                                 }
-                                .buttonStyle(.plain)
-
-                                // Expanded config (on demand)
-                                if showProviderConfig {
-                                    Rectangle()
-                                        .fill(panelMuted.opacity(0.15))
-                                        .frame(height: 1)
-                                        .padding(.horizontal, 12)
-
-                                    VStack(alignment: .leading, spacing: 14) {
-                                        // ASR Provider
-                                        VStack(alignment: .leading, spacing: 8) {
-                                        HStack(spacing: 8) {
-                                            Text("ASR")
-                                                .font(.system(size: 10, weight: .bold, design: .rounded))
-                                                .foregroundStyle(panelMuted)
-                                            Spacer()
-                                        }
-                                        HStack(spacing: 6) {
-                                            ForEach(viewModel.asrRegistry.providers, id: \.id) { provider in
-                                                Button {
-                                                    viewModel.asrRegistry.selectedID = provider.id
-                                                } label: {
-                                                    VStack(spacing: 2) {
-                                                        Text(provider.displayName)
-                                                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                                        Text(provider.subtitle)
-                                                            .font(.system(size: 9, weight: .medium, design: .rounded))
-                                                            .foregroundStyle(panelMuted)
-                                                    }
-                                                    .padding(.horizontal, 10)
-                                                    .padding(.vertical, 6)
-                                                    .background(
-                                                        provider.id == viewModel.asrRegistry.selectedID
-                                                            ? panelAccent.opacity(0.18)
-                                                            : panelSurfaceStrong.opacity(0.8),
-                                                        in: Capsule()
-                                                    )
-                                                    .overlay(
-                                                        provider.id == viewModel.asrRegistry.selectedID
-                                                            ? Capsule().stroke(panelAccent.opacity(0.5), lineWidth: 1)
-                                                            : nil
-                                                    )
-                                                }
-                                                .buttonStyle(.plain)
-                                                .foregroundStyle(
-                                                    provider.id == viewModel.asrRegistry.selectedID
-                                                        ? panelAccent : panelText.opacity(0.7)
-                                                )
-                                            }
-                                        }
-                                        } // end ASR VStack
-
-                                        // Command Mode
-                                        VStack(alignment: .leading, spacing: 8) {
-                                        HStack(spacing: 8) {
-                                            Text("MODE")
-                                                .font(.system(size: 10, weight: .bold, design: .rounded))
-                                                .foregroundStyle(panelMuted)
-                                            Spacer()
-                                        }
-
-                                        HStack(spacing: 6) {
-                                            Button {
-                                                viewModel.commandMode.clearCommand()
-                                            } label: {
-                                                HStack(spacing: 4) {
-                                                    Image(systemName: "text.badge.checkmark")
-                                                        .font(.system(size: 10, weight: .semibold))
-                                                    Text("Clean")
-                                                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                                }
-                                                .padding(.horizontal, 10)
-                                                .padding(.vertical, 6)
-                                                .background(
-                                                    viewModel.commandMode.activeCommand == nil
-                                                        ? Color(red: 0.62, green: 0.46, blue: 0.86).opacity(0.18)
-                                                        : panelSurfaceStrong.opacity(0.8),
-                                                    in: Capsule()
-                                                )
-                                            }
-                                            .buttonStyle(.plain)
-                                            .foregroundStyle(
-                                                viewModel.commandMode.activeCommand == nil
-                                                    ? Color(red: 0.62, green: 0.46, blue: 0.86) : panelText.opacity(0.7)
-                                            )
-
-                                            ForEach(viewModel.commandMode.builtInCommands) { cmd in
-                                                Button {
-                                                    viewModel.commandMode.selectCommand(cmd)
-                                                } label: {
-                                                    HStack(spacing: 4) {
-                                                        Image(systemName: cmd.icon)
-                                                            .font(.system(size: 10, weight: .semibold))
-                                                        Text(cmd.name)
-                                                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                                            .lineLimit(1)
-                                                            .fixedSize(horizontal: true, vertical: false)
-                                                    }
-                                                    .padding(.horizontal, 10)
-                                                    .padding(.vertical, 6)
-                                                    .background(
-                                                        viewModel.commandMode.activeCommand?.id == cmd.id
-                                                            ? Color(red: 0.62, green: 0.46, blue: 0.86).opacity(0.18)
-                                                            : panelSurfaceStrong.opacity(0.8),
-                                                        in: Capsule()
-                                                    )
-                                                }
-                                                .buttonStyle(.plain)
-                                                .foregroundStyle(
-                                                    viewModel.commandMode.activeCommand?.id == cmd.id
-                                                        ? Color(red: 0.62, green: 0.46, blue: 0.86) : panelText.opacity(0.7)
-                                                )
-                                            }
-                                        }
-                                        } // end MODE VStack
-
-                                        // VAD Toggle
-                                        HStack(spacing: 8) {
-                                            Text("VAD")
-                                                .font(.system(size: 10, weight: .bold, design: .rounded))
-                                                .foregroundStyle(panelMuted)
-                                            Text("(experimental)")
-                                                .font(.system(size: 9, weight: .medium, design: .rounded))
-                                                .foregroundStyle(panelMuted.opacity(0.6))
-                                            Spacer()
-                                            Toggle("", isOn: Binding(
-                                                get: { ConfigManager.shared.config.vadEnabled },
-                                                set: { newVal in
-                                                    var cfg = ConfigManager.shared.config
-                                                    cfg.vadEnabled = newVal
-                                                    ConfigManager.shared.saveConfig(cfg)
-                                                }
-                                            ))
-                                            .toggleStyle(.switch)
-                                            .controlSize(.mini)
-                                            .labelsHidden()
-                                        }
-                                    }
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 12)
-                                    .transition(.opacity.combined(with: .move(edge: .top)))
-                                }
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 2)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(panelSurface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        } // end ASR/MODE/VAD collapse
+                        }
 
                         // ── Unified Record / Clip card ──
                         ZStack {
@@ -810,6 +647,31 @@ struct ShellPanelView: View {
             viewModel.refreshRuntime()
         }
         } // end else (compact mode)
+    }
+
+    // MARK: - Mode Chip
+
+    @ViewBuilder
+    private func modeChip(icon: String, label: String, isActive: Bool, action: @escaping () -> Void) -> some View {
+        let purple = Color(red: 0.62, green: 0.46, blue: 0.86)
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .semibold))
+                Text(label)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                isActive ? purple.opacity(0.18) : panelSurfaceStrong.opacity(0.8),
+                in: Capsule()
+            )
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(isActive ? purple : panelText.opacity(0.7))
     }
 }
 
