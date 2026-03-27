@@ -153,6 +153,18 @@ struct ShellPanelView: View {
                     .help("Settings")
 
                     Button {
+                        viewModel.openHistory()
+                    } label: {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(panelAccent.opacity(0.85))
+                            .frame(width: 26, height: 26)
+                            .background(panelAccent.opacity(0.15), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("History")
+
+                    Button {
                         viewModel.onRequestQuit?()
                     } label: {
                         Image(systemName: "power")
@@ -218,6 +230,35 @@ struct ShellPanelView: View {
                                     .buttonStyle(.plain)
                                     .foregroundStyle(panelAccentSoft)
                                 }
+                            }
+
+                            HStack(spacing: 8) {
+                                Image(systemName: viewModel.flowStage == .failed ? "xmark.octagon.fill" : "dot.circle.fill")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(viewModel.flowStage == .failed ? panelDanger : panelAccentSoft)
+                                Text("Flow Status")
+                                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                                    .foregroundStyle(panelMuted)
+                                Text(viewModel.flowStage.label)
+                                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                                    .foregroundStyle(viewModel.flowStage == .failed ? panelDanger : panelAccentSoft)
+                                Spacer()
+                            }
+
+                            Text(viewModel.flowLine)
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundStyle(panelText)
+
+                            if !viewModel.flowHint.isEmpty {
+                                Text(viewModel.flowHint)
+                                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                    .foregroundStyle(panelMuted)
+                            }
+
+                            if !viewModel.metrics.stages.isEmpty {
+                                Text(viewModel.metrics.stageSummaryText)
+                                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                    .foregroundStyle(panelMuted.opacity(0.7))
                             }
 
                             Text(viewModel.llmLine)
@@ -328,13 +369,28 @@ struct ShellPanelView: View {
                         .frame(maxWidth: .infinity, minHeight: 108)
 
                         if !viewModel.actionError.isEmpty {
-                            Text(viewModel.actionError)
-                                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                .foregroundStyle(dark ? Color(red: 1.0, green: 0.84, blue: 0.78) : Color(red: 0.60, green: 0.15, blue: 0.08))
-                                .textSelection(.enabled)
-                                .padding(14)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background((dark ? Color(red: 0.33, green: 0.15, blue: 0.13) : Color(red: 0.98, green: 0.90, blue: 0.88)).opacity(0.92), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text(viewModel.actionError)
+                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(dark ? Color(red: 1.0, green: 0.84, blue: 0.78) : Color(red: 0.60, green: 0.15, blue: 0.08))
+                                    .textSelection(.enabled)
+
+                                if !viewModel.recoveryActions.isEmpty {
+                                    HStack(spacing: 8) {
+                                        ForEach(viewModel.recoveryActions) { action in
+                                            Button(action.title) {
+                                                viewModel.performRecoveryAction(action)
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.small)
+                                            .tint(panelAccentSoft)
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(14)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background((dark ? Color(red: 0.33, green: 0.15, blue: 0.13) : Color(red: 0.98, green: 0.90, blue: 0.88)).opacity(0.92), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                         }
 
                         // ── Transcript + Polished card (always visible) ──
@@ -495,11 +551,21 @@ struct ShellPanelView: View {
                     removal:   .move(edge: .trailing)
                 ))
         }
+
+        // ── HISTORY PANEL ──
+        if viewModel.showHistory {
+            HistoryView(onDismiss: { viewModel.closeHistory() })
+                .transition(.asymmetric(
+                    insertion: .move(edge: .trailing),
+                    removal:   .move(edge: .trailing)
+                ))
+        }
         }
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .frame(minWidth: 380, idealWidth: 408, maxWidth: .infinity, minHeight: 360, idealHeight: 500, maxHeight: .infinity)
         .foregroundStyle(panelText)
         .animation(.easeInOut(duration: 0.25), value: viewModel.showSettings)
+        .animation(.easeInOut(duration: 0.25), value: viewModel.showHistory)
         .onAppear {
             viewModel.refreshRuntime()
         }

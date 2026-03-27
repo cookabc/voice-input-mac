@@ -15,6 +15,7 @@ let package = Package(
             path: "Sources",
             linkerSettings: [
                 .linkedFramework("Speech"),
+                .linkedLibrary("sqlite3"),
             ]
         ),
     ]

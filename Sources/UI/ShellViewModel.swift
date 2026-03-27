@@ -4,6 +4,48 @@ import Foundation
 
 @MainActor
 final class ShellViewModel: ObservableObject {
+    enum FlowStage: String {
+        case idle
+        case recording
+        case transcribing
+        case polishing
+        case readyToPaste
+        case failed
+
+        var label: String {
+            switch self {
+            case .idle: return "Idle"
+            case .recording: return "Recording"
+            case .transcribing: return "Transcribing"
+            case .polishing: return "Polishing"
+            case .readyToPaste: return "Ready"
+            case .failed: return "Failed"
+            }
+        }
+    }
+
+    enum RecoveryAction: String, Identifiable {
+        case refreshRuntime
+        case openSettings
+        case retryTranscribe
+        case retryPolish
+        case retryPaste
+        case startRecording
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .refreshRuntime: return "Refresh Runtime"
+            case .openSettings: return "Open Settings"
+            case .retryTranscribe: return "Retry Transcription"
+            case .retryPolish: return "Retry Polish"
+            case .retryPaste: return "Retry Paste"
+            case .startRecording: return "Start Recording"
+            }
+        }
+    }
+
     var onRequestDismiss: (() -> Void)?
     var onRequestQuit: (() -> Void)?
     var onRequestFocus: (() -> Void)?
@@ -23,6 +65,10 @@ final class ShellViewModel: ObservableObject {
     @Published var recordingLine = "Idle"
     @Published var recordingPath = ""
     @Published var actionError = ""
+    @Published var recoveryActions: [RecoveryAction] = []
+    @Published var flowStage: FlowStage = .idle
+    @Published var flowLine: String = "Idle"
+    @Published var flowHint: String = ""
     @Published var transcriptText = ""
     @Published var transcriptMeta = ""
     @Published var isTranscribing = false
@@ -31,6 +77,7 @@ final class ShellViewModel: ObservableObject {
     @Published var isPolishing = false
     @Published var polishedText = ""
     @Published var showSettings = false
+    @Published var showHistory = false
     @Published var recordingElapsed = 0
     @Published var micLevel: Float = 0
     /// True while an auto-flow (hotkey-initiated) cycle is running.
@@ -44,6 +91,8 @@ final class ShellViewModel: ObservableObject {
     private var audioPlayer: AVAudioPlayer?
     private var recordingTimer: Timer?
     private let tts = TextToSpeechService.shared
+    let metrics = FlowMetrics()
+    private let history = HistoryStore.shared
 
     private let core = VoiceCoreService()
 
@@ -81,6 +130,7 @@ final class ShellViewModel: ObservableObject {
         guard !text.isEmpty else {
             isAutoFlow = false
             compactMode = false
+            setFlowStage(.idle, line: "Auto-flow finished")
             onAutoFlowComplete?()
             return
         }
@@ -90,6 +140,7 @@ final class ShellViewModel: ObservableObject {
         guard TextInsertionService.isAccessibilityTrusted() else {
             TextInsertionService.promptAccessibility()
             autoFlowStatus = "Copied (no Accessibility)"
+            setFlowStage(.readyToPaste, line: "Copied, awaiting paste permission")
             isAutoFlow = false
             compactMode = false
             onAutoFlowComplete?()
@@ -102,6 +153,7 @@ final class ShellViewModel: ObservableObject {
             try? TextInsertionService.simulatePaste()
             await MainActor.run {
                 self.autoFlowStatus = "✓ Done"
+                self.setFlowStage(.readyToPaste, line: "Auto-flow done")
                 self.isAutoFlow = false
                 // Brief pause so user sees "✓ Done" before pill disappears.
                 Task {
@@ -132,6 +184,9 @@ final class ShellViewModel: ObservableObject {
 
     func refreshRuntime() {
         Task { @MainActor in
+            // Ensure config file exists for new users.
+            ConfigManager.shared.migrateIfNeeded()
+            PromptManager.shared.seedDefaultsIfNeeded()
             // Await permissions so the recognizer is authorized before the first recording.
             await core.requestPermissions()
 
@@ -149,7 +204,12 @@ final class ShellViewModel: ObservableObject {
             coliLine = statusLine(name: "coli", path: AppPaths.coliHelperPath, available: coliExists)
             await self.refreshLLMRuntime()
             recordingLine = core.isRecording ? "Recording live" : "Ready to record"
-            actionError = ""
+            if core.isRecording {
+                setFlowStage(.recording, line: "Recording live")
+            } else {
+                setFlowStage(.idle, line: "Ready to record")
+            }
+            clearActionError()
         }
     }
 
@@ -161,7 +221,11 @@ final class ShellViewModel: ObservableObject {
 
     func startRecording() {
         guard canStartRecording else {
-            actionError = isReady ? "Recording is already running." : "Runtime is not ready for recording yet."
+            if isReady {
+                setActionError("Recording is already running.", markFailure: false)
+            } else {
+                setActionError("Runtime is not ready for recording yet.", recoveryActions: [.refreshRuntime])
+            }
             return
         }
 
@@ -174,13 +238,14 @@ final class ShellViewModel: ObservableObject {
             // so a live-ASR failure never leaves the UI in a zombie "Start failed" state.
             recordingPath = path
             recordingLine = "Recording live"
-            actionError = ""
+            clearActionError()
             transcriptText = ""
             transcriptMeta = ""
             liveTranscript = ""
             polishedText = ""
+            setFlowStage(.recording, line: "Recording live")
         } catch {
-            actionError = error.localizedDescription
+            setActionError(error.localizedDescription, recoveryActions: [.startRecording])
             recordingLine = "Start failed"
             return
         }
@@ -204,7 +269,7 @@ final class ShellViewModel: ObservableObject {
 
     func stopRecording() {
         guard canStopRecording else {
-            actionError = "There is no active recording to stop."
+            setActionError("There is no active recording to stop.", recoveryActions: [.startRecording], markFailure: false)
             return
         }
 
@@ -214,7 +279,8 @@ final class ShellViewModel: ObservableObject {
         micLevel = 0
         core.stopRecording()
         recordingLine = "Recorded"
-        actionError = ""
+        setFlowStage(.transcribing, line: "Processing recording")
+        clearActionError()
         if isAutoFlow { autoFlowStatus = "Transcribing…" }
         transcribeLatestRecording()
     }
@@ -223,7 +289,8 @@ final class ShellViewModel: ObservableObject {
         guard canTranscribe else { return }
 
         isTranscribing = true
-        actionError = ""
+        setFlowStage(.transcribing, line: "Transcribing clip")
+        clearActionError()
         let path = recordingPath
         let vm = self
 
@@ -248,7 +315,8 @@ final class ShellViewModel: ObservableObject {
                     vm.transcriptText = text
                     vm.transcriptMeta = meta
                     vm.isTranscribing = false
-                    vm.actionError = ""
+                    vm.setFlowStage(.readyToPaste, line: "Transcript ready")
+                    vm.clearActionError()
                     // Auto-flow: chain straight to polish if transcript has real content.
                     if vm.isAutoFlow {
                         // Require at least 4 words to justify an LLM call.
@@ -266,7 +334,7 @@ final class ShellViewModel: ObservableObject {
             } catch {
                 let message = error.localizedDescription
                 await MainActor.run {
-                    vm.actionError = message
+                    vm.setActionError(message, recoveryActions: [.retryTranscribe])
                     vm.isTranscribing = false
                 }
             }
@@ -275,16 +343,16 @@ final class ShellViewModel: ObservableObject {
 
     func copyTranscript() {
         guard !transcriptText.isEmpty else {
-            actionError = "No transcript available to copy."
+            setActionError("No transcript available to copy.", markFailure: false)
             return
         }
         TextInsertionService.copyToClipboard(transcriptText)
-        actionError = ""
+        clearActionError()
     }
 
     func pasteTranscript() {
         guard !transcriptText.isEmpty else {
-            actionError = "No transcript available to paste."
+            setActionError("No transcript available to paste.", markFailure: false)
             return
         }
 
@@ -292,11 +360,14 @@ final class ShellViewModel: ObservableObject {
 
         guard TextInsertionService.isAccessibilityTrusted() else {
             TextInsertionService.promptAccessibility()
-            actionError = "Copied to clipboard. Grant Accessibility access in System Settings to enable auto-paste."
+            setActionError(
+                "Copied to clipboard. Grant Accessibility access in System Settings to enable auto-paste.",
+                recoveryActions: [.retryPaste]
+            )
             return
         }
 
-        actionError = ""
+        clearActionError()
         onRequestDismiss?()
 
         Task {
@@ -322,7 +393,7 @@ final class ShellViewModel: ObservableObject {
                     self.stopClipPlayback()
                 }
             } catch {
-                actionError = "Could not play clip: \(error.localizedDescription)"
+                setActionError("Could not play clip: \(error.localizedDescription)")
             }
         }
     }
@@ -338,6 +409,7 @@ final class ShellViewModel: ObservableObject {
         transcriptMeta = ""
         polishedText = ""
         stopTTS()
+        setFlowStage(.idle, line: isRecordingActive ? "Recording live" : "Ready to record")
     }
 
     // MARK: - TTS Proofread
@@ -362,6 +434,14 @@ final class ShellViewModel: ObservableObject {
         isSpeakingTTS = false
     }
 
+    // MARK: - History
+
+    func openHistory() {
+        showHistory = true
+        onRequestFocus?()
+    }
+    func closeHistory() { showHistory = false }
+
     // MARK: - LLM Polish
 
     func openSettings() {
@@ -377,13 +457,17 @@ final class ShellViewModel: ObservableObject {
         guard canPolish else { return }
 
         if LLMPolisher.shared.requiresAPIKey && LLMPolisher.shared.apiKey == nil {
-            actionError = "Enter your API key in Settings to enable polishing, or switch to a local model endpoint."
+            setActionError(
+                "Enter your API key in Settings to enable polishing, or switch to a local model endpoint.",
+                recoveryActions: [.openSettings]
+            )
             showSettings = true
             return
         }
 
         isPolishing = true
-        actionError = ""
+        setFlowStage(.polishing, line: "Polishing transcript")
+        clearActionError()
         let text = transcriptText
         let dictionary = DictionaryManager.loadEntries()
         let vm = self
@@ -395,7 +479,7 @@ final class ShellViewModel: ObservableObject {
                     guard probe.isReady else {
                         let message = probe.actionHint ?? probe.line
                         await MainActor.run {
-                            vm.actionError = message
+                            vm.setActionError(message, recoveryActions: [.refreshRuntime, .openSettings])
                             vm.isPolishing = false
                             vm.showSettings = true
                             vm.llmLine = probe.line
@@ -409,13 +493,14 @@ final class ShellViewModel: ObservableObject {
                 await MainActor.run {
                     vm.polishedText = polished
                     vm.isPolishing = false
+                    vm.setFlowStage(.readyToPaste, line: "Polished text ready")
                     if vm.isAutoFlow {
                         vm.finishAutoFlow(text: polished)
                     }
                 }
             } catch {
                 await MainActor.run {
-                    vm.actionError = error.localizedDescription
+                    vm.setActionError(error.localizedDescription, recoveryActions: [.retryPolish])
                     vm.isPolishing = false
                 }
             }
@@ -425,7 +510,7 @@ final class ShellViewModel: ObservableObject {
     func copyPolished() {
         guard !polishedText.isEmpty else { return }
         TextInsertionService.copyToClipboard(polishedText)
-        actionError = ""
+        clearActionError()
     }
 
     func pastePolished() {
@@ -435,11 +520,14 @@ final class ShellViewModel: ObservableObject {
 
         guard TextInsertionService.isAccessibilityTrusted() else {
             TextInsertionService.promptAccessibility()
-            actionError = "Copied to clipboard. Grant Accessibility access in System Settings to enable auto-paste."
+            setActionError(
+                "Copied to clipboard. Grant Accessibility access in System Settings to enable auto-paste.",
+                recoveryActions: [.retryPaste]
+            )
             return
         }
 
-        actionError = ""
+        clearActionError()
         onRequestDismiss?()
 
         Task {
@@ -451,5 +539,89 @@ final class ShellViewModel: ObservableObject {
     private func statusLine(name: String, path: String, available: Bool) -> String {
         let location = URL(fileURLWithPath: path).lastPathComponent
         return available ? "\(name) ready · \(location)" : "\(name) missing · \(location)"
+    }
+
+    private func setFlowStage(_ stage: FlowStage, line: String? = nil, hint: String = "") {
+        flowStage = stage
+        flowLine = line ?? stage.label
+        flowHint = hint
+        recordingLine = flowLine
+
+        // Drive metrics tracking.
+        switch stage {
+        case .recording:
+            metrics.beginSession()
+            metrics.beginStage("recording")
+        case .transcribing:
+            metrics.beginStage("transcribing")
+        case .polishing:
+            metrics.beginStage("polishing")
+        case .readyToPaste:
+            metrics.endCurrentStage(outcome: .success)
+            // Record successful session to history.
+            if let summary = metrics.endSession(outcome: .success) {
+                let text = polishedText.isEmpty ? transcriptText : polishedText
+                history.record(
+                    durationSec: summary.totalDuration,
+                    textLength: text.count,
+                    mode: isAutoFlow ? "auto" : "manual",
+                    polished: !polishedText.isEmpty,
+                    success: true
+                )
+            }
+        case .failed:
+            metrics.endCurrentStage(outcome: .failure)
+            if let summary = metrics.endSession(outcome: .failure) {
+                history.record(
+                    durationSec: summary.totalDuration,
+                    textLength: 0,
+                    mode: isAutoFlow ? "auto" : "manual",
+                    polished: false,
+                    success: false
+                )
+            }
+        case .idle:
+            if metrics.currentSession != nil {
+                _ = metrics.endSession(outcome: .success)
+            }
+        }
+    }
+
+    func performRecoveryAction(_ action: RecoveryAction) {
+        switch action {
+        case .refreshRuntime:
+            refreshRuntime()
+        case .openSettings:
+            openSettings()
+        case .retryTranscribe:
+            transcribeLatestRecording()
+        case .retryPolish:
+            polishTranscript()
+        case .retryPaste:
+            if !polishedText.isEmpty {
+                pastePolished()
+            } else {
+                pasteTranscript()
+            }
+        case .startRecording:
+            startRecording()
+        }
+    }
+
+    private func setActionError(
+        _ message: String,
+        recoveryActions: [RecoveryAction] = [],
+        markFailure: Bool = true
+    ) {
+        actionError = message
+        self.recoveryActions = recoveryActions
+        if markFailure {
+            setFlowStage(.failed, line: "Action failed", hint: message)
+        }
+    }
+
+    private func clearActionError() {
+        actionError = ""
+        recoveryActions = []
     }
 }

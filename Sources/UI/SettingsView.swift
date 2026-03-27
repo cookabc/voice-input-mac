@@ -35,6 +35,7 @@ struct SettingsView: View {
     @State private var isRecordingHotkey = false
     @State private var hotkeyMonitor: Any? = nil
     @State private var dictionaryCount = 0
+    @State private var showAdvanced = false
     @FocusState private var focusedField: Field?
 
     private enum Field { case apiKey, baseURL, model }
@@ -277,6 +278,91 @@ struct SettingsView: View {
                                 .font(.system(size: 11, weight: .medium, design: .rounded))
                                 .foregroundStyle(muted)
                                 .lineSpacing(3)
+                        }
+                    }
+
+                    // ── ADVANCED ──
+                    VStack(alignment: .leading, spacing: 10) {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) { showAdvanced.toggle() }
+                        } label: {
+                            HStack(spacing: 6) {
+                                sectionHeader("ADVANCED")
+                                Image(systemName: showAdvanced ? "chevron.down" : "chevron.right")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(muted)
+                                Spacer()
+                            }
+                        }
+                        .buttonStyle(.plain)
+
+                        if showAdvanced {
+                            VStack(spacing: 0) {
+                                // Config file
+                                HStack(spacing: 10) {
+                                    fieldLabel("Config")
+                                    Text(ConfigManager.shared.configFilePath)
+                                        .font(.system(size: 10, design: .monospaced))
+                                        .foregroundStyle(muted)
+                                        .lineLimit(2)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    Spacer()
+                                    Text(ConfigManager.shared.isUsingFile ? "Active" : "Defaults")
+                                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                                        .foregroundStyle(ConfigManager.shared.isUsingFile ? Color.green.opacity(0.8) : muted)
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 11)
+
+                                rowDivider
+
+                                // Prompt directory
+                                HStack(spacing: 10) {
+                                    fieldLabel("Prompts")
+                                    Text("~/.murmur/prompts/")
+                                        .font(.system(size: 10, design: .monospaced))
+                                        .foregroundStyle(muted)
+                                    Spacer()
+                                    Button("Open") {
+                                        let url = URL(fileURLWithPath: FileManager.default.homeDirectoryForCurrentUser.path + "/.murmur/prompts")
+                                        NSWorkspace.shared.open(url)
+                                    }
+                                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(accent)
+                                    .buttonStyle(.plain)
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 11)
+
+                                rowDivider
+
+                                // History DB
+                                HStack(spacing: 10) {
+                                    fieldLabel("History")
+                                    Text("~/.murmur/history.db")
+                                        .font(.system(size: 10, design: .monospaced))
+                                        .foregroundStyle(muted)
+                                    Spacer()
+                                    let st = HistoryStore.shared.stats()
+                                    Text("\(st.totalSessions) sessions")
+                                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                                        .foregroundStyle(muted)
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 11)
+                            }
+                            .background(surface.opacity(0.92), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "doc.text")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(muted)
+                                Text("Edit ~/.murmur/config.json to customise settings. Changes auto-reload. Edit prompts in ~/.murmur/prompts/ (system.txt / user.txt). Use {text} in user.txt as a placeholder for the transcript.")
+                                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                                    .foregroundStyle(muted)
+                                    .lineSpacing(3)
+                            }
                         }
                     }
 
