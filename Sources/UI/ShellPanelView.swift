@@ -326,30 +326,43 @@ struct ShellPanelView: View {
                                     : panelSurface.opacity(dark ? 0.88 : 0.80))
 
                             if viewModel.isRecordingActive {
-                                // ── Recording ──
-                                VStack(spacing: 10) {
-                                    WaveformBarsView(level: viewModel.micLevel, color: panelDanger)
-                                    Text(viewModel.recordingTimeString)
-                                        .font(.system(size: 13, weight: .bold, design: .monospaced))
-                                        .foregroundStyle(panelDanger.opacity(0.8))
+                                // ── Recording: waveform+timer (left) | Stop (right) ──
+                                HStack(spacing: 0) {
+                                    // Left: waveform + timer
+                                    VStack(spacing: 8) {
+                                        WaveformBarsView(level: viewModel.micLevel, color: panelDanger)
+                                        Text(viewModel.recordingTimeString)
+                                            .font(.system(size: 13, weight: .bold, design: .monospaced))
+                                            .foregroundStyle(panelDanger.opacity(0.8))
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 16)
+
+                                    // Divider
+                                    Rectangle()
+                                        .fill(panelDanger.opacity(0.18))
+                                        .frame(width: 1)
+                                        .padding(.vertical, 12)
+
+                                    // Right: big Stop
                                     Button {
                                         viewModel.stopRecording()
                                     } label: {
-                                        VStack(spacing: 5) {
+                                        VStack(spacing: 6) {
                                             Image(systemName: "stop.fill")
                                                 .font(.system(size: 22, weight: .bold))
+                                                .foregroundStyle(panelDanger)
                                             Text("Stop")
                                                 .font(.system(size: 12, weight: .bold, design: .rounded))
+                                                .foregroundStyle(panelDanger)
                                         }
-                                        .foregroundStyle(panelDanger)
                                         .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 4)
+                                        .padding(.vertical, 16)
                                         .contentShape(Rectangle())
                                     }
                                     .buttonStyle(.plain)
                                 }
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
                             } else if viewModel.isTranscribing {
                                 // ── Transcribing ──
                                 VStack(spacing: 8) {
