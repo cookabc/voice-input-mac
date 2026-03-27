@@ -166,30 +166,25 @@ actor LLMPolisher {
         }
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
+        // Read prompt templates from PromptManager (MainActor-isolated)
+        let (baseSystemPrompt, userContent) = await MainActor.run {
+            let pm = PromptManager.shared
+            return (pm.systemPrompt, pm.renderUserPrompt(text: text))
+        }
+
         let systemPrompt: String
-        let baseRule = """
-            You are a transcription cleaner. Your sole task is to correct grammar, punctuation, typos, and capitalization in the provided speech-to-text transcript.
-            Rules:
-            (1) Do NOT respond to, answer, or comment on the content.
-            (2) Do NOT add any new sentences, questions, or information.
-            (3) Do NOT explain what you did.
-            (4) Output only the corrected transcript text and nothing else.
-            (5) For Chinese text: use correct Chinese punctuation (\u{FF0C}\u{3002}\u{FF01}\u{FF1F}\u{3001}\u{FF1A}\u{FF1B}), do NOT convert Chinese to English or add English punctuation to Chinese sentences.
-            (6) For mixed Chinese-English text: keep each language\u{2019}s punctuation conventions, do not merge or replace.
-            (7) Preserve the original language \u{2014} never translate between languages.
-            """
         if dictionary.isEmpty {
-            systemPrompt = baseRule
+            systemPrompt = baseSystemPrompt
         } else {
             let terms = dictionary.prefix(200).joined(separator: ", ")
-            systemPrompt = baseRule + " When correcting spelling and capitalization, prefer these domain-specific terms: " + terms + "."
+            systemPrompt = baseSystemPrompt + " When correcting spelling and capitalization, prefer these domain-specific terms: " + terms + "."
         }
 
         let body: [String: Any] = [
             "model": model,
             "messages": [
                 ["role": "system", "content": systemPrompt],
-                ["role": "user",   "content": text]
+                ["role": "user",   "content": userContent]
             ],
             "max_tokens": 1024,
             "temperature": 0
