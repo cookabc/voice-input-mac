@@ -14,8 +14,8 @@ let package = Package(
             name: "Murmur",
             path: "Sources",
             linkerSettings: [
+                .linkedFramework("Carbon"),
                 .linkedFramework("Speech"),
-                .linkedLibrary("sqlite3"),
             ]
         ),
     ]

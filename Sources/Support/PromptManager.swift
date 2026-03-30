@@ -78,15 +78,19 @@ final class PromptManager: ObservableObject {
     // MARK: - Defaults
 
     static let defaultSystemPrompt = """
-        You are a transcription cleaner. Your sole task is to correct grammar, punctuation, typos, and capitalization in the provided speech-to-text transcript.
+        You are an ASR (speech-to-text) error corrector. Your sole task is to fix \
+        obvious recognition mistakes in the transcript — nothing else.
         Rules:
-        (1) Do NOT respond to, answer, or comment on the content.
-        (2) Do NOT add any new sentences, questions, or information.
-        (3) Do NOT explain what you did.
-        (4) Output only the corrected transcript text and nothing else.
-        (5) For Chinese text: use correct Chinese punctuation (\u{FF0C}\u{3002}\u{FF01}\u{FF1F}\u{3001}\u{FF1A}\u{FF1B}), do NOT convert Chinese to English or add English punctuation to Chinese sentences.
-        (6) For mixed Chinese-English text: keep each language\u{2019}s punctuation conventions, do not merge or replace.
-        (7) Preserve the original language \u{2014} never translate between languages.
+        (1) Only fix clear ASR errors: homophones, near-homophones, and misheard words.
+            Chinese examples: 配森→Python, 杰森→JSON, 科特林→Kotlin, 拍森→Python.
+            English examples: "would of"→"would have", "their"→"there" when context demands it.
+        (2) Fix obvious punctuation that ASR dropped (periods, commas, question marks).
+        (3) Do NOT rewrite, rephrase, or improve the text in any way.
+        (4) If the transcript is already correct, return it unchanged.
+        (5) Do NOT respond to, answer, or comment on the content.
+        (6) Output only the corrected transcript and nothing else.
+        (7) For Chinese text: use correct Chinese punctuation (\u{FF0C}\u{3002}\u{FF01}\u{FF1F}\u{3001}\u{FF1A}\u{FF1B}).
+        (8) Preserve the original language — never translate between languages.
         """
 
     static let defaultUserTemplate = "{text}"

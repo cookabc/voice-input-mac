@@ -54,6 +54,7 @@ hdiutil create -volname "Murmur" \
 ```
 
 > **Note:** The bundle is unsigned. For distribution outside your own machine, sign it:
+>
 > ```bash
 > codesign --deep --force --sign "Developer ID Application: Your Name" \
 >   .stage/Murmur.app
@@ -101,5 +102,3 @@ AVAudioEngine ──buffers──▶ LiveSpeechRecognizer  (parallel zh-CN / zh-
 ## License
 
 MIT
-
-

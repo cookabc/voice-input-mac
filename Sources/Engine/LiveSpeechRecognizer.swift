@@ -6,91 +6,66 @@ enum LiveSpeechError: Error, LocalizedError {
     var errorDescription: String? { "Speech recognizer is unavailable on this device or locale." }
 }
 
-// Runs one SFSpeechRecognizer pipeline per candidate locale in parallel.
-// All channels receive the same audio buffers; we display the result from
-// whichever channel is actively producing text (usually identified by length).
-// This lets the app handle Chinese + English without language pre-selection.
+/// Single-locale SFSpeechRecognizer pipeline.
+/// Receives audio buffers from AudioSession via `appendBuffer(_:at:)`,
+/// emits partial transcripts through `onPartialResult`.
+/// Handles the 1-minute recognition-task expiry by auto-restarting.
 final class LiveSpeechRecognizer {
 
-    private struct Channel {
-        let recognizer: SFSpeechRecognizer
-        var request: SFSpeechAudioBufferRecognitionRequest?
-        var task: SFSpeechRecognitionTask?
-        var confirmedText = ""
-        var latestFull = ""
-    }
-
-    // Safety guarantee (same as before): AudioSession.stopRecording() calls removeTap()
-    // before VoiceCoreService calls stopLiveTranscription(), so appendBuffer() is never
-    // called concurrently with the main-thread stop() that nils all requests.
-    private var channels: [Channel] = []
+    private let recognizer: SFSpeechRecognizer?
+    private var request: SFSpeechAudioBufferRecognitionRequest?
+    private var task: SFSpeechRecognitionTask?
+    private var confirmedText = ""
     private var isActive = false
 
     var onPartialResult: ((String) -> Void)?
 
-    init() {
-        // Run zh-CN + zh-TW + system locale + en-US, deduplicating by identifier.
-        // In practice this means ≤3 streams (zh-CN, zh-TW, en-US), covering the
-        // common case of a user who switches between Chinese and English.
-        let preferredIDs = ["zh-CN", "zh-TW", Locale.current.identifier, "en-US"]
-        var seen = Set<String>()
-        for id in preferredIDs {
-            guard !seen.contains(id) else { continue }
-            seen.insert(id)
-            if let rec = SFSpeechRecognizer(locale: Locale(identifier: id)) {
-                channels.append(Channel(recognizer: rec))
-            }
-        }
+    /// Creates a recognizer for a single locale (e.g. "zh-CN", "en-US").
+    init(locale: String = "zh-CN") {
+        recognizer = SFSpeechRecognizer(locale: Locale(identifier: locale))
     }
 
     func start() throws {
-        let available = channels.filter { $0.recognizer.isAvailable }
-        guard !available.isEmpty else { throw LiveSpeechError.recognizerUnavailable }
-        isActive = true
-        for i in channels.indices where channels[i].recognizer.isAvailable {
-            channels[i].confirmedText = ""
-            channels[i].latestFull = ""
-            beginTask(index: i)
+        guard let recognizer, recognizer.isAvailable else {
+            throw LiveSpeechError.recognizerUnavailable
         }
+        isActive = true
+        confirmedText = ""
+        beginTask()
     }
 
-    private func beginTask(index i: Int) {
-        guard i < channels.count else { return }
-        let rec = channels[i].recognizer
+    private func beginTask() {
+        guard let recognizer else { return }
+
         let req = SFSpeechAudioBufferRecognitionRequest()
         req.shouldReportPartialResults = true
-        channels[i].request = req
+        request = req
 
-        channels[i].task = rec.recognitionTask(with: req) { [weak self] result, error in
+        task = recognizer.recognitionTask(with: req) { [weak self] result, error in
             DispatchQueue.main.async {
                 guard let self else { return }
 
                 if let result {
                     let segment = result.bestTranscription.formattedString
-                    let confirmed = self.channels[i].confirmedText
+                    let confirmed = self.confirmedText
                     let full = confirmed.isEmpty ? segment : "\(confirmed) \(segment)"
-                    self.channels[i].latestFull = full
 
-                    // Emit the longest result across all active channels.
-                    // The channel whose locale matches the spoken language will always
-                    // produce longer/more accurate text; others return empty or garbled.
-                    let best = self.channels.map(\.latestFull).max(by: { $0.count < $1.count }) ?? full
-                    self.onPartialResult?(best)
+                    self.onPartialResult?(full)
 
                     if result.isFinal {
-                        self.channels[i].confirmedText = full
-                        if self.isActive {
-                            self.beginTask(index: i)   // restart for 1-min expiry
-                        }
+                        self.confirmedText = full
+                        // Auto-restart — SFSpeechRecognitionTask expires after ~1 min.
+                        if self.isActive { self.beginTask() }
                     }
                 }
 
                 if let err = error {
                     let code = (err as NSError).code
+                    // 1110 = no speech detected, 203 = cancelled, 301 = service reset
                     guard code != 1110, code != 203, code != 301 else { return }
                     if self.isActive {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            self.beginTask(index: i)
+                            self.beginTask()
                         }
                     }
                 }
@@ -98,24 +73,22 @@ final class LiveSpeechRecognizer {
         }
     }
 
-    // Called from the AVAudioEngine tap thread.
+    /// Called from the AVAudioEngine tap thread.
     func appendBuffer(_ buffer: AVAudioPCMBuffer, at time: AVAudioTime) {
-        for channel in channels {
-            channel.request?.append(buffer)
-        }
+        request?.append(buffer)
     }
 
     func stop() {
         isActive = false
-        for i in channels.indices {
-            channels[i].request?.endAudio()
-            channels[i].task?.finish()
-            channels[i].task = nil
-            channels[i].request = nil
-            channels[i].confirmedText = ""
-            channels[i].latestFull = ""
-        }
+        request?.endAudio()
+        task?.finish()
+        task = nil
+        request = nil
+        confirmedText = ""
     }
+
+    /// The latest accumulated transcript text (confirmed + in-flight).
+    var latestText: String { confirmedText }
 
     static func requestAuthorization() async {
         await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
