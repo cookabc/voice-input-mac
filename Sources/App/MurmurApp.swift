@@ -32,6 +32,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // ── State machine ─────────────────────────────────────────────────────────
     private enum State { case idle, recording, transcribing, refining, inserting }
     private var state: State = .idle
+    private var processingTask: Task<Void, Never>?
+    private var escLocalMonitor: Any?
+    private var escGlobalMonitor: Any?
 
     // MARK: - Lifecycle
 
@@ -52,8 +55,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupMenuBar()
         setupFnKey()
         setupHotkey()
+        setupEscMonitor()
 
         settingsController.hotkeyManager = hotkeyManager
+
+        showOnboardingIfNeeded()
     }
 
     // MARK: - Setup helpers
@@ -92,6 +98,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         hotkeyManager.start()
+    }
+
+    private func setupEscMonitor() {
+        escLocalMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 53 { // Esc
+                Task { @MainActor in self?.cancelDictation() }
+                return nil
+            }
+            return event
+        }
+        escGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 53 {
+                Task { @MainActor in self?.cancelDictation() }
+            }
+        }
+    }
+
+    private func showOnboardingIfNeeded() {
+        let key = "hasShownOnboarding"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            let alert = NSAlert()
+            alert.messageText = "Welcome to Murmur"
+            alert.informativeText = "Hold Fn or press ⌥Space to start dictating.\nRelease to transcribe and paste.\nPress Esc anytime to cancel."
+            alert.alertStyle = .informational
+            alert.addButton(withTitle: "Got it")
+            alert.runModal()
+        }
     }
 
     // MARK: - Dictation flow
@@ -154,7 +190,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         capsulePanel.viewModel.state = .transcribing
         capsulePanel.viewModel.audioLevel = 0
 
-        Task {
+        processingTask = Task {
             // ── Final transcription (prefer coli for accuracy) ────────────────
             var transcript = liveText
             let coliPath = AppPaths.coliHelperPath
@@ -167,6 +203,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 } catch {
                     fputs("[Murmur] Coli failed, using live text: \(error.localizedDescription)\n", stderr)
                 }
+            }
+
+            guard !Task.isCancelled else {
+                finish(audioPath: audioPath)
+                return
             }
 
             // Nothing to paste?
@@ -191,11 +232,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
 
+            guard !Task.isCancelled else {
+                finish(audioPath: audioPath)
+                return
+            }
+
             // ── Text injection ────────────────────────────────────────────────
             state = .inserting
             await injectText(transcript)
 
             finish(audioPath: audioPath)
+        }
+    }
+
+    private func cancelDictation() {
+        guard state != .idle else { return }
+
+        // Cancel any in-flight processing.
+        processingTask?.cancel()
+        processingTask = nil
+
+        let audioPath = audioSession.recordingPath
+
+        if state == .recording {
+            audioSession.stopRecording()
+            liveSpeech?.stop()
+        }
+
+        capsulePanel.viewModel.state = .cancelled
+        capsulePanel.viewModel.text = ""
+        capsulePanel.viewModel.audioLevel = 0
+
+        // Brief flash of "Cancelled" then hide.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.finish(audioPath: audioPath)
         }
     }
 

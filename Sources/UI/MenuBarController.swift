@@ -62,6 +62,12 @@ final class MenuBarController: NSObject {
     private func rebuildMenu() {
         menu.removeAllItems()
 
+        // ── Hint ──
+        let hintItem = NSMenuItem(title: "Fn hold to dictate · Esc to cancel", action: nil, keyEquivalent: "")
+        hintItem.isEnabled = false
+        menu.addItem(hintItem)
+        menu.addItem(.separator())
+
         // ── Language ──
         let langItem = NSMenuItem(title: "Language", action: nil, keyEquivalent: "")
         let langMenu = NSMenu()

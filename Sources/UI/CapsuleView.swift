@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - ViewModel
 
 enum CapsuleState {
-    case recording, transcribing, refining
+    case recording, transcribing, refining, cancelled
 }
 
 @MainActor
@@ -49,8 +49,10 @@ struct CapsuleView: View {
     private var displayText: String {
         switch viewModel.state {
         case .recording:     return viewModel.text
-        case .transcribing:  return "Transcribing…"
+        case .transcribing:
+            return viewModel.text.isEmpty ? "Transcribing…" : viewModel.text
         case .refining:      return "Refining…"
+        case .cancelled:     return "Cancelled"
         }
     }
 }
