@@ -52,6 +52,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupMenuBar()
         setupFnKey()
         setupHotkey()
+
+        settingsController.hotkeyManager = hotkeyManager
     }
 
     // MARK: - Setup helpers
