@@ -17,122 +17,187 @@ final class CapsuleViewModel {
 // MARK: - Capsule root view
 
 struct CapsuleView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var viewModel: CapsuleViewModel
 
-    /// Per-bar amplitude weights: center bar tallest, outer bars shorter.
-    private let weights: [Float] = [0.5, 0.8, 1.0, 0.75, 0.55]
-
     var body: some View {
-        HStack(spacing: 10) {
-            if let leadingSymbol {
-                Image(systemName: leadingSymbol)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(statusForegroundColor)
-                    .frame(width: 24, height: 24)
-            } else {
-                // 5-bar waveform
-                HStack(spacing: 3) {
-                    ForEach(Array(weights.enumerated()), id: \.offset) { _, weight in
-                        WaveformBar(level: viewModel.audioLevel, weight: weight)
-                    }
-                }
-                .frame(width: 44, height: 32)
-            }
+        HStack(spacing: 14) {
+            CapsuleGlyph(state: viewModel.state, audioLevel: viewModel.audioLevel)
 
-            // Live text / status label
-            if !displayText.isEmpty {
-                Text(displayText)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(statusForegroundColor)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(titleText)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color.primary)
+
+                Text(detailText)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(Color.primary.opacity(0.72))
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .transition(.opacity.combined(with: .move(edge: .leading)))
+                    .minimumScaleFactor(0.85)
             }
+
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 16)
-        .frame(height: 56)
-        .animation(.easeInOut(duration: 0.2), value: displayText.isEmpty)
+        .padding(.horizontal, MurmurDesignTokens.Capsule.horizontalPadding)
+        .frame(maxWidth: .infinity, minHeight: MurmurDesignTokens.Capsule.height, maxHeight: MurmurDesignTokens.Capsule.height)
+        .background {
+            Capsule(style: .continuous)
+                .fill(.regularMaterial)
+                .overlay(
+                    Capsule(style: .continuous)
+                        .strokeBorder(MurmurDesignTokens.Capsule.borderColor, lineWidth: 1)
+                )
+        }
+        .shadow(color: MurmurDesignTokens.Capsule.shadowColor, radius: 18, y: 10)
+        .animation(reduceMotion ? nil : .spring(duration: 0.32, bounce: 0.22), value: viewModel.state)
+        .animation(reduceMotion ? nil : .spring(duration: 0.26, bounce: 0.18), value: detailText)
     }
 
-    private var displayText: String {
+    private var titleText: String {
         switch viewModel.state {
-        case .recording:     return viewModel.text
+        case .recording:
+            return "Listening"
         case .transcribing:
-            return viewModel.text.isEmpty ? "Transcribing…" : viewModel.text
-        case .refining:      return "Refining…"
-        case .cancelled:     return "Cancelled"
-        case .success:       return viewModel.text.isEmpty ? "Done" : viewModel.text
-        case .error:         return viewModel.text.isEmpty ? "Something went wrong" : viewModel.text
-        }
-    }
-
-    private var leadingSymbol: String? {
-        switch viewModel.state {
+            return "Transcribing"
+        case .refining:
+            return "Refining"
         case .cancelled:
-            return "xmark.circle.fill"
+            return "Cancelled"
         case .success:
-            return "checkmark.circle.fill"
+            return "Done"
         case .error:
-            return "exclamationmark.triangle.fill"
-        case .recording, .transcribing, .refining:
-            return nil
+            return "Error"
         }
     }
 
-    private var statusForegroundColor: Color {
+    private var detailText: String {
         switch viewModel.state {
+        case .recording:
+            return viewModel.text.isEmpty ? "Speak now" : viewModel.text
+        case .transcribing:
+            return viewModel.text.isEmpty ? "Processing recorded speech" : viewModel.text
+        case .refining:
+            return viewModel.text.isEmpty ? "Applying correction prompt" : viewModel.text
+        case .cancelled:
+            return viewModel.text.isEmpty ? "Nothing was inserted" : viewModel.text
         case .success:
-            return Color(red: 0.54, green: 0.95, blue: 0.67)
+            return viewModel.text.isEmpty ? "Transcript inserted" : viewModel.text
         case .error:
-            return Color(red: 1.0, green: 0.82, blue: 0.28)
-        case .cancelled, .recording, .transcribing, .refining:
-            return .white
+            return viewModel.text.isEmpty ? "Something went wrong" : viewModel.text
         }
     }
 }
 
-// MARK: - Single waveform bar
-
-/// Displays one animated bar whose height tracks `level * weight`.
-/// Uses smoothed attack/release for natural motion:
-/// - Attack (level rising): 40 % of delta per frame
-/// - Release (level falling): 15 % of delta per frame
-/// A tiny per-bar jitter (±4 %) prevents the bars from looking robotic.
-private struct WaveformBar: View {
-    let level: Float
-    let weight: Float
-
-    @State private var smoothed: Float = 0
-    @State private var timer: Timer?
+private struct CapsuleGlyph: View {
+    let state: CapsuleState
+    let audioLevel: Float
 
     var body: some View {
-        let clamped = min(1, max(0.05, smoothed))
-
-        RoundedRectangle(cornerRadius: 2)
-            .fill(Color.white.opacity(0.9))
-            .frame(width: 4, height: CGFloat(clamped) * 28 + 4)
-            .onAppear {
-                startSmoothing()
-            }
-            .onDisappear {
-                timer?.invalidate()
-                timer = nil
-            }
+        switch state {
+        case .recording:
+            RecordingGlyph(level: audioLevel)
+        case .transcribing:
+            ActivityGlyph(symbol: "waveform.badge.magnifyingglass", tint: MurmurDesignTokens.Capsule.transcribingTint)
+        case .refining:
+            ActivityGlyph(symbol: "sparkles", tint: MurmurDesignTokens.Capsule.refiningTint)
+        case .cancelled:
+            StatusGlyph(symbol: "xmark", tint: MurmurDesignTokens.Capsule.cancelledTint)
+        case .success:
+            StatusGlyph(symbol: "checkmark", tint: MurmurDesignTokens.Capsule.successTint)
+        case .error:
+            StatusGlyph(symbol: "exclamationmark", tint: MurmurDesignTokens.Capsule.errorTint)
+        }
     }
+}
 
-    /// Applies attack/release smoothing on a timer for natural motion.
-    private func startSmoothing() {
-        timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { _ in
-            Task { @MainActor in
-                let jitter = Float.random(in: -0.04...0.04)
-                let target = level * weight + jitter
-                let rate: Float = target > smoothed ? 0.40 : 0.15
-                let next = smoothed + (target - smoothed) * rate
-                if abs(next - smoothed) > 0.001 {
-                    smoothed = next
+private struct RecordingGlyph: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let level: Float
+
+    private let weights: [CGFloat] = [0.48, 0.78, 1.0, 0.74, 0.54]
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: reduceMotion ? 0.25 : 1.0 / 24.0)) { timeline in
+            let time = timeline.date.timeIntervalSinceReferenceDate
+
+            HStack(alignment: .center, spacing: 3.5) {
+                ForEach(Array(weights.enumerated()), id: \.offset) { index, weight in
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(MurmurDesignTokens.Capsule.recordingTint.opacity(0.92))
+                        .frame(
+                            width: 4,
+                            height: barHeight(weight: weight, index: index, time: time)
+                        )
                 }
             }
+            .frame(width: MurmurDesignTokens.Capsule.iconSize, height: MurmurDesignTokens.Capsule.iconSize)
+            .padding(.horizontal, 1)
+            .background(
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .fill(MurmurDesignTokens.Capsule.recordingTint.opacity(0.12))
+            )
         }
+    }
+
+    private func barHeight(weight: CGFloat, index: Int, time: TimeInterval) -> CGFloat {
+        let baseLevel = CGFloat(max(0.08, min(1, level)))
+        let oscillation: CGFloat
+
+        if reduceMotion {
+            oscillation = 0
+        } else {
+            let phase = time * 6.2 + Double(index) * 0.55
+            oscillation = CGFloat((sin(phase) + 1) * 0.5) * 0.18
+        }
+
+        return 8 + ((baseLevel * weight) + oscillation) * 18
+    }
+}
+
+private struct ActivityGlyph: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let symbol: String
+    let tint: Color
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: reduceMotion ? 0.25 : 1.0 / 24.0)) { timeline in
+            let phase = reduceMotion ? 0.15 : CGFloat((sin(timeline.date.timeIntervalSinceReferenceDate * 3.6) + 1) * 0.5)
+
+            ZStack {
+                Circle()
+                    .fill(tint.opacity(0.14))
+                Circle()
+                    .stroke(tint.opacity(0.22 + phase * 0.24), lineWidth: 1.2)
+                    .scaleEffect(1 + phase * 0.08)
+
+                Image(systemName: symbol)
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(tint)
+            }
+            .frame(width: MurmurDesignTokens.Capsule.iconSize, height: MurmurDesignTokens.Capsule.iconSize)
+        }
+    }
+}
+
+private struct StatusGlyph: View {
+    let symbol: String
+    let tint: Color
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(tint.opacity(0.14))
+            Circle()
+                .stroke(tint.opacity(0.28), lineWidth: 1.2)
+
+            Image(systemName: symbol)
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .foregroundStyle(tint)
+        }
+        .frame(width: MurmurDesignTokens.Capsule.iconSize, height: MurmurDesignTokens.Capsule.iconSize)
     }
 }

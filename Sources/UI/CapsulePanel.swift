@@ -10,7 +10,7 @@ final class CapsulePanel: NSPanel {
 
     init() {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 200, height: 56),
+            contentRect: NSRect(x: 0, y: 0, width: 240, height: MurmurDesignTokens.Capsule.height),
             styleMask: [.nonactivatingPanel, .borderless],
             backing: .buffered,
             defer: true
@@ -21,30 +21,12 @@ final class CapsulePanel: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         isOpaque = false
         backgroundColor = .clear
-        hasShadow = true
+        hasShadow = false
         isMovableByWindowBackground = false
         hidesOnDeactivate = false
 
-        // Frosted glass background
-        let visualEffect = NSVisualEffectView()
-        visualEffect.material = .hudWindow
-        visualEffect.state = .active
-        visualEffect.blendingMode = .behindWindow
-        visualEffect.wantsLayer = true
-        visualEffect.layer?.cornerRadius = 28
-        visualEffect.layer?.masksToBounds = true
-
-        contentView = visualEffect
-
         hostingView = NSHostingView(rootView: CapsuleView(viewModel: viewModel))
-        hostingView.translatesAutoresizingMaskIntoConstraints = false
-        visualEffect.addSubview(hostingView)
-        NSLayoutConstraint.activate([
-            hostingView.leadingAnchor.constraint(equalTo: visualEffect.leadingAnchor),
-            hostingView.trailingAnchor.constraint(equalTo: visualEffect.trailingAnchor),
-            hostingView.topAnchor.constraint(equalTo: visualEffect.topAnchor),
-            hostingView.bottomAnchor.constraint(equalTo: visualEffect.bottomAnchor),
-        ])
+        contentView = hostingView
     }
 
     // MARK: - Show / Hide with animation
@@ -52,8 +34,8 @@ final class CapsulePanel: NSPanel {
     func showCapsule() {
         guard let screen = NSScreen.main else { return }
         let frame = screen.frame
-        let width: CGFloat = 200
-        let height: CGFloat = 56
+        let width: CGFloat = max(frame.width > 0 ? self.frame.width : 240, 240)
+        let height: CGFloat = MurmurDesignTokens.Capsule.height
         let x = frame.midX - width / 2
         let y = frame.origin.y + 80
 
@@ -96,12 +78,12 @@ final class CapsulePanel: NSPanel {
 
     /// Elastically resize the capsule width based on text content.
     func updateWidth(for text: String) {
-        let barAreaWidth: CGFloat = 60
-        let padding: CGFloat = 40
-        let minWidth: CGFloat = 160
+        let barAreaWidth: CGFloat = 76
+        let padding: CGFloat = 72
+        let minWidth: CGFloat = 220
         let maxWidth: CGFloat = 560
 
-        let font = NSFont.systemFont(ofSize: 15, weight: .medium)
+        let font = NSFont.systemFont(ofSize: 13, weight: .medium)
         let textWidth = (text as NSString).size(withAttributes: [.font: font]).width
         let newWidth = min(maxWidth, max(minWidth, barAreaWidth + textWidth + padding))
 
@@ -112,7 +94,7 @@ final class CapsulePanel: NSPanel {
             ctx.duration = 0.25
             ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             self.animator().setFrame(
-                NSRect(x: x, y: self.frame.origin.y, width: newWidth, height: 56),
+                NSRect(x: x, y: self.frame.origin.y, width: newWidth, height: MurmurDesignTokens.Capsule.height),
                 display: true
             )
         }
