@@ -39,6 +39,9 @@ Other modes:
 ./dev.sh --release --no-run
 ```
 
+Runtime support files now live under `~/Library/Application Support/Murmur/`.
+Legacy data from `~/.murmur/` is migrated forward on launch for config, prompts, and dictionary files.
+
 ## Building a distributable bundle
 
 ```bash

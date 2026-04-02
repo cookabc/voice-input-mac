@@ -1,17 +1,18 @@
 import Foundation
 
 enum DictionaryManager {
-    /// Path: ~/.murmur/dictionary.txt
+    /// Path: ~/Library/Application Support/Murmur/dictionary.txt
     static var dictionaryFilePath: String {
-        let dir = (NSHomeDirectory() as NSString).appendingPathComponent(".murmur")
-        return (dir as NSString).appendingPathComponent("dictionary.txt")
+        AppPaths.dictionaryFile.path
     }
 
-    /// Creates ~/.murmur/ and dictionary.txt with starter comments if missing.
+    /// Creates the standard Murmur support directory and dictionary.txt if missing.
     static func ensureFileExists() {
-        let dir = (NSHomeDirectory() as NSString).appendingPathComponent(".murmur")
-        let path = (dir as NSString).appendingPathComponent("dictionary.txt")
         let fm = FileManager.default
+        let dir = AppPaths.appSupportDirectory.path
+        let path = dictionaryFilePath
+
+        migrateIfNeeded(fileManager: fm)
 
         if !fm.fileExists(atPath: dir) {
             try? fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
@@ -42,5 +43,22 @@ enum DictionaryManager {
             .components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty && !$0.hasPrefix("#") }
+    }
+
+    private static func migrateIfNeeded(fileManager: FileManager) {
+        let newPath = dictionaryFilePath
+        let legacyPath = AppPaths.legacyDictionaryFile.path
+
+        guard !fileManager.fileExists(atPath: newPath), fileManager.fileExists(atPath: legacyPath) else { return }
+
+        do {
+            if !fileManager.fileExists(atPath: AppPaths.appSupportDirectory.path) {
+                try fileManager.createDirectory(at: AppPaths.appSupportDirectory, withIntermediateDirectories: true)
+            }
+            try fileManager.copyItem(atPath: legacyPath, toPath: newPath)
+            MurmurLogger.app.info("Migrated dictionary file to \(newPath, privacy: .public)")
+        } catch {
+            MurmurLogger.app.error("Failed to migrate dictionary file from \(legacyPath, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
     }
 }

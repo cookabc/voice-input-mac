@@ -1,6 +1,6 @@
 import Foundation
 
-/// Manages persistent configuration stored in `~/.murmur/config.json`.
+/// Manages persistent configuration stored in `~/Library/Application Support/Murmur/config.json`.
 /// Provides hot-reload via file-system polling and a fallback to UserDefaults
 /// for users who haven't created a config file yet.
 @MainActor
@@ -39,15 +39,13 @@ final class ConfigManager: ObservableObject {
     private var fileMonitorSource: DispatchSourceFileSystemObject?
     private var fileDescriptor: Int32 = -1
 
-    private let configDir: String = {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        return "\(home)/.murmur"
-    }()
-
-    private var configPath: String { "\(configDir)/config.json" }
+    private let configDir = AppPaths.appSupportDirectory.path
+    private let legacyConfigPath = AppPaths.legacyConfigFile.path
+    private var configPath: String { AppPaths.configFile.path }
 
     init() {
         configFilePath = configPath
+        migrateIfNeeded()
         loadConfig()
         startWatching()
     }
@@ -60,23 +58,20 @@ final class ConfigManager: ObservableObject {
     // MARK: - Load / Save
 
     func loadConfig() {
-        let fm = FileManager.default
-        if fm.fileExists(atPath: configPath),
-           let data = fm.contents(atPath: configPath) {
-            do {
-                let decoder = JSONDecoder()
-                decoder.keyDecodingStrategy = .convertFromSnakeCase
-                config = try decoder.decode(Config.self, from: data)
-                isUsingFile = true
-                syncToUserDefaults(config)
-                return
-            } catch {
-                fputs("[ConfigManager] Failed to decode \(configPath): \(error)\n", stderr)
-            }
+        if loadConfigFromFile(at: configPath) {
+            configFilePath = configPath
+            return
+        }
+
+        if loadConfigFromFile(at: legacyConfigPath) {
+            configFilePath = legacyConfigPath
+            MurmurLogger.app.info("Loaded config from legacy path: \(self.legacyConfigPath, privacy: .public)")
+            return
         }
 
         // Fallback: read from UserDefaults
         config = configFromUserDefaults()
+        configFilePath = configPath
         isUsingFile = false
     }
 
@@ -91,6 +86,19 @@ final class ConfigManager: ObservableObject {
     func migrateIfNeeded() {
         let fm = FileManager.default
         guard !fm.fileExists(atPath: configPath) else { return }
+
+        ensureConfigDir()
+
+        if fm.fileExists(atPath: legacyConfigPath) {
+            do {
+                try fm.copyItem(atPath: legacyConfigPath, toPath: configPath)
+                MurmurLogger.app.info("Migrated config from legacy path to \(self.configPath, privacy: .public)")
+                return
+            } catch {
+                MurmurLogger.app.error("Failed to migrate config to Application Support: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+
         let current = configFromUserDefaults()
         writeConfigFile(current)
     }
@@ -131,6 +139,27 @@ final class ConfigManager: ObservableObject {
         let fm = FileManager.default
         if !fm.fileExists(atPath: configDir) {
             try? fm.createDirectory(atPath: configDir, withIntermediateDirectories: true)
+        }
+    }
+
+    @discardableResult
+    private func loadConfigFromFile(at path: String) -> Bool {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: path),
+              let data = fm.contents(atPath: path) else {
+            return false
+        }
+
+        do {
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            config = try decoder.decode(Config.self, from: data)
+            isUsingFile = true
+            syncToUserDefaults(config)
+            return true
+        } catch {
+            MurmurLogger.app.error("Failed to decode config at \(path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            return false
         }
     }
 

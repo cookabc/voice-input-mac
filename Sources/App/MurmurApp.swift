@@ -72,6 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DictionaryManager.ensureFileExists()
         PromptManager.shared.seedDefaultsIfNeeded()
         ConfigManager.shared.migrateIfNeeded()
+        MurmurLogger.app.info("Murmur support directory: \(AppPaths.appSupportDirectory.path, privacy: .public)")
 
         setupMenuBar()
         setupFnKey()

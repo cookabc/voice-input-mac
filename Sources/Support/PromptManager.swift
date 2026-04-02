@@ -1,6 +1,6 @@
 import Foundation
 
-/// Manages LLM prompt templates stored in `~/.murmur/prompts/`.
+/// Manages LLM prompt templates stored in `~/Library/Application Support/Murmur/prompts/`.
 /// Supports `{text}` variable substitution (V0).
 @MainActor
 final class PromptManager: ObservableObject {
@@ -9,15 +9,13 @@ final class PromptManager: ObservableObject {
     @Published private(set) var systemPrompt: String = PromptManager.defaultSystemPrompt
     @Published private(set) var userTemplate: String = PromptManager.defaultUserTemplate
 
-    private let promptDir: String = {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        return "\(home)/.murmur/prompts"
-    }()
+    private let promptDir = AppPaths.promptsDirectory.path
 
-    private var systemPromptPath: String { "\(promptDir)/system.txt" }
-    private var userTemplatePath: String { "\(promptDir)/user.txt" }
+    private var systemPromptPath: String { AppPaths.systemPromptFile.path }
+    private var userTemplatePath: String { AppPaths.userPromptFile.path }
 
     init() {
+        migrateIfNeeded()
         ensureDir()
         loadPrompts()
     }
@@ -72,6 +70,25 @@ final class PromptManager: ObservableObject {
         let fm = FileManager.default
         if !fm.fileExists(atPath: promptDir) {
             try? fm.createDirectory(atPath: promptDir, withIntermediateDirectories: true)
+        }
+    }
+
+    private func migrateIfNeeded() {
+        let fm = FileManager.default
+        ensureDir()
+
+        migrateFileIfNeeded(from: AppPaths.legacySystemPromptFile.path, to: systemPromptPath, fileManager: fm)
+        migrateFileIfNeeded(from: AppPaths.legacyUserPromptFile.path, to: userTemplatePath, fileManager: fm)
+    }
+
+    private func migrateFileIfNeeded(from legacyPath: String, to newPath: String, fileManager: FileManager) {
+        guard !fileManager.fileExists(atPath: newPath), fileManager.fileExists(atPath: legacyPath) else { return }
+
+        do {
+            try fileManager.copyItem(atPath: legacyPath, toPath: newPath)
+            MurmurLogger.app.info("Migrated prompt file to \(newPath, privacy: .public)")
+        } catch {
+            MurmurLogger.app.error("Failed to migrate prompt file from \(legacyPath, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
     }
 
