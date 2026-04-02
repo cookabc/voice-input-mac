@@ -163,16 +163,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showLaunchConfigurationAlert(for issue: LaunchConfigurationIssue) {
-        NSApp.activate(ignoringOtherApps: true)
-
-        let alert = NSAlert()
-        alert.messageText = issue.alertTitle
-        alert.informativeText = issue.alertMessage
-        alert.alertStyle = .critical
-        alert.addButton(withTitle: "退出")
-        alert.runModal()
-
-        NSApp.terminate(nil)
+        noticePanel.show(
+            title: issue.alertTitle,
+            message: issue.alertMessage,
+            style: .warning,
+            primaryAction: NoticePanelAction(title: "Quit Murmur", role: .destructive) {
+                NSApp.terminate(nil)
+            }
+        )
     }
 
     private func setupHotkey() {
