@@ -5,9 +5,21 @@ import AppKit
 @MainActor
 final class MenuBarController: NSObject {
 
+    enum RuntimeState: Equatable {
+        case idle
+        case recording
+        case transcribing
+        case refining
+        case editing
+        case cancelled(String)
+        case success(String)
+        case error(String)
+    }
+
     private var statusItem: NSStatusItem?
     private let menu = NSMenu()
     private var hasAccessibilityWarning = false
+    private var runtimeState: RuntimeState = .idle
 
     var onLanguageChanged: ((String) -> Void)?
     var onLLMToggled: ((Bool) -> Void)?
@@ -16,21 +28,72 @@ final class MenuBarController: NSObject {
     func setAccessibilityWarning(_ warning: Bool) {
         hasAccessibilityWarning = warning
         updateStatusIcon()
+        rebuildMenu()
+    }
+
+    func setRuntimeState(_ state: RuntimeState) {
+        runtimeState = state
+        updateStatusIcon()
+        rebuildMenu()
     }
 
     private func updateStatusIcon() {
         guard let button = statusItem?.button else { return }
+        let configuration = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
+
         if hasAccessibilityWarning {
             button.image = NSImage(
                 systemSymbolName: "mic.slash.fill",
                 accessibilityDescription: "Murmur - 需要权限"
-            )
-        } else {
-            button.image = NSImage(
-                systemSymbolName: "mic.fill",
-                accessibilityDescription: "Murmur"
-            )
+            )?.withSymbolConfiguration(configuration)
+            button.contentTintColor = .systemOrange
+            return
         }
+
+        let symbolName: String
+        let accessibilityDescription: String
+        let tintColor: NSColor?
+
+        switch runtimeState {
+        case .idle:
+            symbolName = "mic.fill"
+            accessibilityDescription = "Murmur"
+            tintColor = nil
+        case .recording:
+            symbolName = "waveform.and.mic"
+            accessibilityDescription = "Murmur - Recording"
+            tintColor = .systemRed
+        case .transcribing:
+            symbolName = "text.bubble.fill"
+            accessibilityDescription = "Murmur - Transcribing"
+            tintColor = .systemBlue
+        case .refining:
+            symbolName = "sparkles"
+            accessibilityDescription = "Murmur - Refining"
+            tintColor = .systemPurple
+        case .editing:
+            symbolName = "square.and.pencil"
+            accessibilityDescription = "Murmur - Reviewing Transcript"
+            tintColor = .systemTeal
+        case .cancelled:
+            symbolName = "xmark.circle.fill"
+            accessibilityDescription = "Murmur - Cancelled"
+            tintColor = .secondaryLabelColor
+        case .success:
+            symbolName = "checkmark.circle.fill"
+            accessibilityDescription = "Murmur - Success"
+            tintColor = .systemGreen
+        case .error:
+            symbolName = "exclamationmark.triangle.fill"
+            accessibilityDescription = "Murmur - Error"
+            tintColor = .systemYellow
+        }
+
+        button.image = NSImage(
+            systemSymbolName: symbolName,
+            accessibilityDescription: accessibilityDescription
+        )?.withSymbolConfiguration(configuration)
+        button.contentTintColor = tintColor
     }
 
     static let supportedLanguages: [(id: String, name: String)] = [
@@ -102,6 +165,10 @@ final class MenuBarController: NSObject {
         let hintItem = NSMenuItem(title: "Fn hold to dictate · Esc to cancel", action: nil, keyEquivalent: "")
         hintItem.isEnabled = false
         menu.addItem(hintItem)
+
+        let runtimeItem = NSMenuItem(title: runtimeStatusLine, action: nil, keyEquivalent: "")
+        runtimeItem.isEnabled = false
+        menu.addItem(runtimeItem)
         menu.addItem(.separator())
 
         // ── Language ──
@@ -196,6 +263,27 @@ final class MenuBarController: NSObject {
     @objc private func openAccessibilitySettings(_ sender: NSMenuItem) {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
+        }
+    }
+
+    private var runtimeStatusLine: String {
+        switch runtimeState {
+        case .idle:
+            return "Status: Ready"
+        case .recording:
+            return "Status: Recording…"
+        case .transcribing:
+            return "Status: Transcribing…"
+        case .refining:
+            return "Status: Refining…"
+        case .editing:
+            return "Status: Reviewing transcript…"
+        case .cancelled(let message):
+            return "Status: \(message)"
+        case .success(let message):
+            return "Status: \(message)"
+        case .error(let message):
+            return "Status: \(message)"
         }
     }
 }

@@ -192,6 +192,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startDictation() {
         guard state == .idle else { return }
         state = .recording
+        menuBar.setRuntimeState(.recording)
 
         // Wire audio level → capsule waveform.
         audioSession.levelSink = { [weak self] level in
@@ -246,6 +247,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         capsulePanel.viewModel.state = .transcribing
         capsulePanel.viewModel.audioLevel = 0
+    menuBar.setRuntimeState(.transcribing)
 
         processingTask = Task {
             // ── Final transcription (prefer coli for accuracy) ────────────────
@@ -285,6 +287,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 state = .refining
                 capsulePanel.viewModel.state = .refining
                 capsulePanel.viewModel.text = "Refining…"
+                menuBar.setRuntimeState(.refining)
 
                 do {
                     let dict = DictionaryManager.loadEntries()
@@ -338,6 +341,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         state = .editing
+        menuBar.setRuntimeState(.editing)
         capsulePanel.hideCapsule()
         return await transcriptEditPanel.edit(text: transcript)
     }
@@ -398,6 +402,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         audioPath: String?,
         hideAfter delay: TimeInterval = 1.0
     ) {
+        menuBar.setRuntimeState(menuBarRuntimeState(for: capsuleState, text: text))
         capsulePanel.viewModel.state = capsuleState
         capsulePanel.viewModel.text = text
         capsulePanel.viewModel.audioLevel = 0
@@ -412,11 +417,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func menuBarRuntimeState(for capsuleState: CapsuleState, text: String) -> MenuBarController.RuntimeState {
+        switch capsuleState {
+        case .recording:
+            return .recording
+        case .transcribing:
+            return .transcribing
+        case .refining:
+            return .refining
+        case .cancelled:
+            return .cancelled(text.isEmpty ? "Cancelled" : text)
+        case .success:
+            return .success(text.isEmpty ? "Done" : text)
+        case .error:
+            return .error(text.isEmpty ? "Something went wrong" : text)
+        }
+    }
+
     // MARK: - Cleanup
 
     private func finish(audioPath: String?) {
         capsulePanel.hideCapsule()
         state = .idle
+        menuBar.setRuntimeState(.idle)
         processingTask = nil
         if let audioPath {
             try? FileManager.default.removeItem(atPath: audioPath)
