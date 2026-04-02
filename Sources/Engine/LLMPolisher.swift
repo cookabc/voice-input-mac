@@ -127,7 +127,7 @@ actor LLMPolisher {
             }
 
             let decoded = try JSONDecoder().decode(TagResponse.self, from: data)
-            let names = Set(decoded.models.map(\ .name))
+            let names = Set(decoded.models.map { $0.name })
             let target = configuredModel
             let hasModel = names.contains(target) || names.contains(where: { $0.hasPrefix("\(target):") })
 
