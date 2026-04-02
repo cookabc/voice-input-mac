@@ -35,8 +35,9 @@ final class SettingsWindowController {
 
         let win = NSWindow(contentViewController: hostingController)
         win.title = "Murmur Settings"
-        win.styleMask = [.titled, .closable, .miniaturizable]
-        win.setContentSize(NSSize(width: 560, height: 560))
+        win.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        win.setContentSize(NSSize(width: 620, height: 620))
+        win.minSize = NSSize(width: 560, height: 520)
         win.center()
         win.isReleasedWhenClosed = false
 
@@ -52,112 +53,100 @@ private struct SettingsContentView: View {
     @Bindable var model: SettingsModel
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                // ── Hotkey section ──
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Hotkey (alternative to Fn)")
-                        .font(.headline)
+        Form {
+            Section("Hotkey") {
+                Text("Use this as an alternative to holding Fn.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
 
-                    HStack {
-                        Text("Shortcut")
-                            .frame(width: 88, alignment: .trailing)
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(model.isRecordingHotkey
-                                      ? Color.accentColor.opacity(0.15)
-                                      : Color(nsColor: .controlBackgroundColor))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .stroke(model.isRecordingHotkey ? Color.accentColor : Color.gray.opacity(0.3))
-                                )
-                            Text(model.isRecordingHotkey ? "Press shortcut…" : model.hotkeyDisplay)
-                                .foregroundStyle(model.isRecordingHotkey ? .secondary : .primary)
-                        }
-                        .frame(height: 28)
-                        .onTapGesture { model.isRecordingHotkey = true }
-                        .background(
-                            HotkeyRecorder(
-                                isRecording: $model.isRecordingHotkey,
-                                onCaptured: { mods, keyCode in
-                                    model.applyHotkey(modifiers: mods, keyCode: keyCode)
-                                }
+                HStack(spacing: 12) {
+                    Text("Shortcut")
+                        .frame(width: 88, alignment: .trailing)
+
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(model.isRecordingHotkey
+                                  ? Color.accentColor.opacity(0.15)
+                                  : Color(nsColor: .controlBackgroundColor))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .stroke(model.isRecordingHotkey ? Color.accentColor : Color.gray.opacity(0.22))
                             )
+
+                        Text(model.isRecordingHotkey ? "Press shortcut…" : model.hotkeyDisplay)
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundStyle(model.isRecordingHotkey ? .secondary : .primary)
+                    }
+                    .frame(maxWidth: 220, minHeight: 32, maxHeight: 32)
+                    .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .onTapGesture { model.isRecordingHotkey = true }
+                    .background(
+                        HotkeyRecorder(
+                            isRecording: $model.isRecordingHotkey,
+                            onCaptured: { mods, keyCode in
+                                model.applyHotkey(modifiers: mods, keyCode: keyCode)
+                            }
                         )
-
-                        Button("Reset") {
-                            model.resetHotkey()
-                        }
-                        .controlSize(.small)
-                    }
-                }
-
-                Divider()
-
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Speech Runtime")
-                        .font(.headline)
-
-                    Text(model.speechRuntime.summaryLine)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(model.speechRuntime.isHelperAvailable ? Color.green : Color.red)
-
-                    infoRow(label: "Provider", value: model.speechRuntime.providerIdentifier)
-
-                    if let modelName = model.speechRuntime.modelName {
-                        infoRow(label: "Model", value: modelName)
-                    }
-
-                    infoRow(
-                        label: "Helper",
-                        value: model.speechRuntime.helperStatusLine,
-                        valueColor: model.speechRuntime.isHelperAvailable ? .green : .red,
-                        monospaced: false
                     )
-                    infoRow(label: "Origin", value: model.speechRuntime.helperOriginLine, monospaced: false)
-                    infoRow(label: "Path", value: model.speechRuntime.helperPath)
-                    infoRow(label: "Support", value: model.speechRuntime.supportDirectoryPath)
-                    infoRow(label: "Config", value: model.speechRuntime.configFilePath)
 
-                    Text("This section mirrors the current final-transcription runtime. Runtime switching and model management will extend from here.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Button("Reset") {
+                        model.resetHotkey()
+                    }
+                    .controlSize(.small)
+                }
+            }
 
-                    HStack {
-                        Button("Refresh Runtime") { model.refreshSpeechRuntime() }
+            Section("Speech Runtime") {
+                Text(model.speechRuntime.summaryLine)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(model.speechRuntime.isHelperAvailable ? Color.green : Color.red)
 
-                        Button("Reveal Helper") {
-                            model.revealInFinder(path: model.speechRuntime.helperPath)
-                        }
-                        .disabled(!FileManager.default.fileExists(atPath: model.speechRuntime.helperPath))
+                infoRow(label: "Provider", value: model.speechRuntime.providerIdentifier)
 
-                        Button("Reveal Support Files") {
-                            model.revealInFinder(path: model.speechRuntime.supportDirectoryPath)
-                        }
+                if let modelName = model.speechRuntime.modelName {
+                    infoRow(label: "Model", value: modelName)
+                }
+
+                infoRow(
+                    label: "Helper",
+                    value: model.speechRuntime.helperStatusLine,
+                    valueColor: model.speechRuntime.isHelperAvailable ? .green : .red,
+                    monospaced: false
+                )
+                infoRow(label: "Origin", value: model.speechRuntime.helperOriginLine, monospaced: false)
+                infoRow(label: "Path", value: model.speechRuntime.helperPath)
+                infoRow(label: "Support", value: model.speechRuntime.supportDirectoryPath)
+                infoRow(label: "Config", value: model.speechRuntime.configFilePath)
+
+                Text("This section mirrors the current final-transcription runtime. Runtime switching and model management will extend from here.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                HStack {
+                    Button("Refresh Runtime") { model.refreshSpeechRuntime() }
+
+                    Button("Reveal Helper") {
+                        model.revealInFinder(path: model.speechRuntime.helperPath)
+                    }
+                    .disabled(!FileManager.default.fileExists(atPath: model.speechRuntime.helperPath))
+
+                    Button("Reveal Support Files") {
+                        model.revealInFinder(path: model.speechRuntime.supportDirectoryPath)
                     }
                 }
+            }
 
-                Divider()
+            Section("LLM API") {
+                fieldRow(label: "Base URL", text: $model.baseURL)
+                fieldRow(label: "API Key", text: $model.apiKey, secure: true)
+                fieldRow(label: "Model", text: $model.model)
+            }
 
-                // ── LLM section ──
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("LLM API Configuration")
-                        .font(.headline)
+            Section("Workflow") {
+                Toggle("Show review window before inserting text", isOn: $model.editBeforePaste)
+            }
 
-                    fieldRow(label: "Base URL", text: $model.baseURL)
-                    fieldRow(label: "API Key", text: $model.apiKey, secure: true)
-                    fieldRow(label: "Model", text: $model.model)
-                }
-
-                Divider()
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Workflow")
-                        .font(.headline)
-
-                    Toggle("Show review window before inserting text", isOn: $model.editBeforePaste)
-                }
-
+            Section {
                 HStack {
                     Button("Test Connection") { model.testConnection() }
                         .disabled(model.isTesting)
@@ -176,10 +165,10 @@ private struct SettingsContentView: View {
                         .keyboardShortcut(.defaultAction)
                 }
             }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(width: 560, height: 560)
+        .formStyle(.grouped)
+        .padding(20)
+        .frame(minWidth: 560, idealWidth: 620, minHeight: 520, idealHeight: 620)
     }
 
     @ViewBuilder
