@@ -8,6 +8,7 @@ final class ConfigManager: ObservableObject {
     static let shared = ConfigManager()
 
     struct Config: Codable, Equatable {
+        var version: Int?
         var asrProvider: String?
         var llmBaseURL: String?
         var llmModel: String?
@@ -33,6 +34,7 @@ final class ConfigManager: ObservableObject {
         static let defaultTTSEnabled = false
         static let defaultAdvancedMode = false
         static let defaultVADEnabled = false
+        static let currentSchemaVersion = 1
     }
 
     @Published private(set) var config: Config = Config()
@@ -46,6 +48,7 @@ final class ConfigManager: ObservableObject {
 
     private var fileMonitorSource: DispatchSourceFileSystemObject?
     private var fileDescriptor: Int32 = -1
+    private var pendingReloadTask: Task<Void, Never>?
 
     private let configDir = AppPaths.appSupportDirectory.path
     private let legacyConfigPath = AppPaths.legacyConfigFile.path
@@ -59,6 +62,7 @@ final class ConfigManager: ObservableObject {
     }
 
     deinit {
+        pendingReloadTask?.cancel()
         fileMonitorSource?.cancel()
         fileMonitorSource = nil
     }
@@ -143,6 +147,7 @@ final class ConfigManager: ObservableObject {
         if fm.fileExists(atPath: legacyConfigPath) {
             do {
                 try fm.copyItem(atPath: legacyConfigPath, toPath: configPath)
+                applySecureFilePermissions(at: configPath)
                 MurmurLogger.app.info("Migrated config from legacy path to \(self.configPath, privacy: .public)")
                 return
             } catch {
@@ -169,7 +174,7 @@ final class ConfigManager: ObservableObject {
         )
         source.setEventHandler { [weak self] in
             Task { @MainActor [weak self] in
-                self?.loadConfig()
+                self?.scheduleReload()
             }
         }
         source.setCancelHandler { [fd = fileDescriptor] in
@@ -180,6 +185,8 @@ final class ConfigManager: ObservableObject {
     }
 
     private func stopWatching() {
+        pendingReloadTask?.cancel()
+        pendingReloadTask = nil
         fileMonitorSource?.cancel()
         fileMonitorSource = nil
     }
@@ -205,14 +212,16 @@ final class ConfigManager: ObservableObject {
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
             var decodedConfig = try decoder.decode(Config.self, from: data)
+            let needsSchemaRewrite = decodedConfig.version != Config.currentSchemaVersion
             let hadLegacyAPIKey = decodedConfig.llmAPIKey?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             decodedConfig.llmAPIKey = migrateLegacyAPIKeyIfPossible(decodedConfig.llmAPIKey, source: path)
+            decodedConfig.version = Config.currentSchemaVersion
 
             config = decodedConfig
             isUsingFile = true
             syncToUserDefaults(decodedConfig)
 
-            if hadLegacyAPIKey && decodedConfig.llmAPIKey == nil && path == configPath {
+            if path == configPath && (hadLegacyAPIKey && decodedConfig.llmAPIKey == nil || needsSchemaRewrite) {
                 writeConfigFile(decodedConfig)
             }
 
@@ -229,13 +238,23 @@ final class ConfigManager: ObservableObject {
         encoder.keyEncodingStrategy = .convertToSnakeCase
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         guard let data = try? encoder.encode(sanitizedConfig(cfg)) else { return }
-        FileManager.default.createFile(atPath: configPath, contents: data)
+        let fileURL = URL(fileURLWithPath: configPath)
+
+        do {
+            try data.write(to: fileURL, options: .atomic)
+            applySecureFilePermissions(at: configPath)
+        } catch {
+            MurmurLogger.app.error("Failed to write config at \(self.configPath, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            return
+        }
+
         isUsingFile = true
     }
 
     private func configFromUserDefaults() -> Config {
         let ud = UserDefaults.standard
         var cfg = Config()
+        cfg.version = Config.currentSchemaVersion
         cfg.llmBaseURL = ud.string(forKey: Self.baseURLUD)?.trimmingCharacters(in: .whitespaces)
         if let base = cfg.llmBaseURL, !base.isEmpty {
             var cleaned = base
@@ -288,8 +307,29 @@ final class ConfigManager: ObservableObject {
 
     private func sanitizedConfig(_ cfg: Config) -> Config {
         var sanitized = cfg
+        sanitized.version = Config.currentSchemaVersion
         sanitized.llmAPIKey = nil
         return sanitized
+    }
+
+    private func scheduleReload() {
+        pendingReloadTask?.cancel()
+        pendingReloadTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            self?.loadConfig()
+        }
+    }
+
+    private func applySecureFilePermissions(at path: String) {
+        do {
+            try FileManager.default.setAttributes(
+                [.posixPermissions: NSNumber(value: 0o600)],
+                ofItemAtPath: path
+            )
+        } catch {
+            MurmurLogger.app.error("Failed to apply secure permissions to \(path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     private func normalizedBaseURL(from rawValue: String) -> String {
