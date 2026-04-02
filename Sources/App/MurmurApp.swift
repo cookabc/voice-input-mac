@@ -13,7 +13,7 @@ struct MurmurApp {
     }
 }
 
-// MARK: - AppDelegate — orchestrates the entire dictation flow
+// MARK: - AppDelegate — lifecycle and component wiring
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -23,25 +23,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settingsController = SettingsWindowController()
     private let fnMonitor = FnKeyMonitor()
     private let hotkeyManager = HotkeyManager()
-    private let audioSession = AudioSession()
-    private let transcriber = ColiTranscriber()
-    private let transcriptEditPanel = TranscriptEditPanelController()
 
-    private var liveSpeech: LiveSpeechRecognizer?
     private lazy var capsulePanel = CapsulePanel()
-
-    // ── State machine ─────────────────────────────────────────────────────────
-    private enum State { case idle, recording, transcribing, refining, editing, inserting }
-    private var state: State = .idle
-    private var processingTask: Task<Void, Never>?
+    private lazy var dictationCoordinator = DictationCoordinator(capsulePanel: capsulePanel)
     private var escLocalMonitor: Any?
     private var escGlobalMonitor: Any?
 
     // MARK: - Lifecycle
 
     func applicationWillTerminate(_ notification: Notification) {
-        processingTask?.cancel()
-        processingTask = nil
+        dictationCoordinator.prepareForTermination()
 
         // Remove ESC monitors to prevent memory leaks
         if let localMonitor = escLocalMonitor {
@@ -89,9 +80,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupMenuBar() {
         menuBar.setup()
+        dictationCoordinator.selectedLocaleProvider = { [weak self] in
+            self?.menuBar.selectedLocale ?? "zh-CN"
+        }
+        dictationCoordinator.llmEnabledProvider = { [weak self] in
+            self?.menuBar.llmEnabled ?? true
+        }
+        dictationCoordinator.runtimeStateSink = { [weak self] runtimeState in
+            self?.menuBar.setRuntimeState(runtimeState)
+        }
         menuBar.onLanguageChanged = { [weak self] _ in
-            // Force recreation of the recognizer with the new locale.
-            self?.liveSpeech = nil
+            self?.dictationCoordinator.resetLiveSpeechRecognizer()
         }
         menuBar.onLLMToggled = { _ in /* state persisted by MenuBarController */ }
         menuBar.onSettingsRequested = { [weak self] in
@@ -101,10 +100,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupFnKey() {
         fnMonitor.onFnDown = { [weak self] in
-            Task { @MainActor in self?.startDictation() }
+            Task { @MainActor in self?.dictationCoordinator.startDictation() }
         }
         fnMonitor.onFnUp = { [weak self] in
-            Task { @MainActor in self?.stopDictation() }
+            Task { @MainActor in self?.dictationCoordinator.stopDictation() }
         }
         if !fnMonitor.start() {
             MurmurLogger.app.error("CGEvent tap failed; accessibility permission is required")
@@ -147,12 +146,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupHotkey() {
         hotkeyManager.onTriggered = { [weak self] in
-            guard let self else { return }
-            switch state {
-            case .idle:      startDictation()
-            case .recording: stopDictation()
-            default:         break
-            }
+            self?.dictationCoordinator.handlePrimaryTrigger()
         }
         hotkeyManager.start()
     }
@@ -160,14 +154,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupEscMonitor() {
         escLocalMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if event.keyCode == 53 { // Esc
-                Task { @MainActor in self?.cancelDictation() }
+                Task { @MainActor in self?.dictationCoordinator.cancelDictation() }
                 return nil
             }
             return event
         }
         escGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if event.keyCode == 53 {
-                Task { @MainActor in self?.cancelDictation() }
+                Task { @MainActor in self?.dictationCoordinator.cancelDictation() }
             }
         }
     }
@@ -184,265 +178,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             alert.alertStyle = .informational
             alert.addButton(withTitle: "Got it")
             alert.runModal()
-        }
-    }
-
-    // MARK: - Dictation flow
-
-    private func startDictation() {
-        guard state == .idle else { return }
-        state = .recording
-        menuBar.setRuntimeState(.recording)
-
-        // Wire audio level → capsule waveform.
-        audioSession.levelSink = { [weak self] level in
-            DispatchQueue.main.async { self?.capsulePanel.viewModel.audioLevel = level }
-        }
-
-        // Create (or reuse) a recognizer for the selected locale.
-        let locale = menuBar.selectedLocale
-        if liveSpeech == nil {
-            liveSpeech = LiveSpeechRecognizer(locale: locale)
-        }
-        liveSpeech?.onPartialResult = { [weak self] text in
-            guard let self else { return }
-            capsulePanel.viewModel.text = text
-            capsulePanel.updateWidth(for: text)
-        }
-
-        // Start recording.
-        do {
-            let path = try audioSession.startRecording()
-            MurmurLogger.speech.info("Recording started: \(path, privacy: .public)")
-        } catch {
-            MurmurLogger.speech.error("Recording failed: \(error.localizedDescription, privacy: .public)")
-            showTransientCapsuleState(.error, text: error.localizedDescription, audioPath: nil)
-            return
-        }
-
-        // Forward audio buffers to the recognizer.
-        audioSession.bufferSink = { [weak self] buffer, time in
-            self?.liveSpeech?.appendBuffer(buffer, at: time)
-        }
-        do { try liveSpeech?.start() } catch {
-            MurmurLogger.speech.error("Live speech start failed: \(error.localizedDescription, privacy: .public)")
-        }
-
-        // Show capsule.
-        capsulePanel.viewModel.state = .recording
-        capsulePanel.viewModel.text = ""
-        capsulePanel.viewModel.audioLevel = 0
-        capsulePanel.showCapsule()
-    }
-
-    private func stopDictation() {
-        guard state == .recording else { return }
-        state = .transcribing
-
-        let audioPath = audioSession.recordingPath
-        let liveText = capsulePanel.viewModel.text
-
-        audioSession.stopRecording()
-        liveSpeech?.stop()
-
-        capsulePanel.viewModel.state = .transcribing
-        capsulePanel.viewModel.audioLevel = 0
-    menuBar.setRuntimeState(.transcribing)
-
-        processingTask = Task {
-            // ── Final transcription (prefer coli for accuracy) ────────────────
-            var transcript = liveText
-            let speechRuntime = SpeechRuntimeProbe.currentStatus()
-            let coliPath = speechRuntime.helperPath
-            if speechRuntime.isHelperAvailable {
-                do {
-                    let result = try await transcriber.transcribe(
-                        filePath: audioPath, coliPath: coliPath
-                    )
-                    transcript = result.text
-                } catch {
-                    MurmurLogger.speech.error("Coli failed, falling back to live text: \(error.localizedDescription, privacy: .public)")
-                }
-            } else {
-                MurmurLogger.speech.error("Coli helper unavailable at \(coliPath, privacy: .public); falling back to live preview text")
-            }
-
-            guard !Task.isCancelled else {
-                finish(audioPath: audioPath)
-                return
-            }
-
-            // Nothing to paste?
-            transcript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !transcript.isEmpty else {
-                let errorText = speechRuntime.isHelperAvailable
-                    ? "No speech detected"
-                    : "Speech runtime unavailable. Check Settings > Speech Runtime."
-                showTransientCapsuleState(.error, text: errorText, audioPath: audioPath)
-                return
-            }
-
-            // ── Optional LLM refinement ───────────────────────────────────────
-            if menuBar.llmEnabled {
-                state = .refining
-                capsulePanel.viewModel.state = .refining
-                capsulePanel.viewModel.text = "Refining…"
-                menuBar.setRuntimeState(.refining)
-
-                do {
-                    let dict = DictionaryManager.loadEntries()
-                    transcript = try await LLMPolisher.shared.polish(
-                        text: transcript, dictionary: dict
-                    )
-                } catch {
-                    MurmurLogger.network.error("LLM polish failed: \(error.localizedDescription, privacy: .public)")
-                }
-            }
-
-            guard !Task.isCancelled else {
-                finish(audioPath: audioPath)
-                return
-            }
-
-            let transcriptAction = await resolveTranscriptAction(transcript)
-
-            guard !Task.isCancelled else {
-                finish(audioPath: audioPath)
-                return
-            }
-
-            switch transcriptAction {
-            case .cancel:
-                showTransientCapsuleState(.cancelled, text: "Cancelled", audioPath: audioPath, hideAfter: 0.5)
-                return
-            case .copy(let editedText):
-                TextInsertionService.copyToClipboard(editedText)
-                showTransientCapsuleState(.success, text: "Copied to clipboard", audioPath: audioPath, hideAfter: 0.8)
-                return
-            case .insert(let editedText):
-                transcript = editedText
-            }
-
-            // ── Text injection ────────────────────────────────────────────────
-            state = .inserting
-            switch await injectText(transcript) {
-            case .success:
-                finish(audioPath: audioPath)
-            case .failure(let error):
-                MurmurLogger.ui.error("Text insertion failed: \(error.localizedDescription, privacy: .public)")
-                showTransientCapsuleState(.error, text: error.localizedDescription, audioPath: audioPath, hideAfter: 1.4)
-            }
-        }
-    }
-
-    private func resolveTranscriptAction(_ transcript: String) async -> TranscriptEditAction {
-        guard ConfigManager.shared.editBeforePaste else {
-            return .insert(transcript)
-        }
-
-        state = .editing
-        menuBar.setRuntimeState(.editing)
-        capsulePanel.hideCapsule()
-        return await transcriptEditPanel.edit(text: transcript)
-    }
-
-    private func cancelDictation() {
-        guard state != .idle else { return }
-
-        // Cancel any in-flight processing.
-        processingTask?.cancel()
-        processingTask = nil
-
-        let audioPath = audioSession.recordingPath
-
-        if state == .recording {
-            audioSession.stopRecording()
-            liveSpeech?.stop()
-        }
-
-        capsulePanel.viewModel.state = .cancelled
-        capsulePanel.viewModel.text = ""
-        capsulePanel.viewModel.audioLevel = 0
-        showTransientCapsuleState(.cancelled, text: "Cancelled", audioPath: audioPath, hideAfter: 0.5)
-    }
-
-    // MARK: - Text injection (IME-safe, clipboard-restore)
-
-    private func injectText(_ text: String) async -> Result<Void, Error> {
-        let savedIME = IMEService.switchToASCII()
-        let savedClipboard = TextInsertionService.saveClipboard()
-
-        TextInsertionService.copyToClipboard(text)
-
-        do {
-            try TextInsertionService.simulatePaste()
-
-            // Short delay so the paste event reaches the front app.
-            try await Task.sleep(nanoseconds: 150_000_000)
-
-            if let saved = savedClipboard {
-                TextInsertionService.restoreClipboard(saved)
-            }
-            if let ime = savedIME {
-                IMEService.restore(ime)
-            }
-
-            return .success(())
-        } catch {
-            if let ime = savedIME {
-                IMEService.restore(ime)
-            }
-            return .failure(error)
-        }
-    }
-
-    private func showTransientCapsuleState(
-        _ capsuleState: CapsuleState,
-        text: String,
-        audioPath: String?,
-        hideAfter delay: TimeInterval = 1.0
-    ) {
-        menuBar.setRuntimeState(menuBarRuntimeState(for: capsuleState, text: text))
-        capsulePanel.viewModel.state = capsuleState
-        capsulePanel.viewModel.text = text
-        capsulePanel.viewModel.audioLevel = 0
-        capsulePanel.updateWidth(for: text)
-
-        if !capsulePanel.isVisible {
-            capsulePanel.showCapsule()
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            self?.finish(audioPath: audioPath)
-        }
-    }
-
-    private func menuBarRuntimeState(for capsuleState: CapsuleState, text: String) -> MenuBarController.RuntimeState {
-        switch capsuleState {
-        case .recording:
-            return .recording
-        case .transcribing:
-            return .transcribing
-        case .refining:
-            return .refining
-        case .cancelled:
-            return .cancelled(text.isEmpty ? "Cancelled" : text)
-        case .success:
-            return .success(text.isEmpty ? "Done" : text)
-        case .error:
-            return .error(text.isEmpty ? "Something went wrong" : text)
-        }
-    }
-
-    // MARK: - Cleanup
-
-    private func finish(audioPath: String?) {
-        capsulePanel.hideCapsule()
-        state = .idle
-        menuBar.setRuntimeState(.idle)
-        processingTask = nil
-        if let audioPath {
-            try? FileManager.default.removeItem(atPath: audioPath)
         }
     }
 }
