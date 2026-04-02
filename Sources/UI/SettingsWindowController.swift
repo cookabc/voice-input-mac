@@ -108,6 +108,13 @@ private struct SettingsContentView: View {
                 }
 
                 infoRow(
+                    label: "Model Status",
+                    value: model.speechRuntime.modelStatusLine,
+                    valueColor: model.speechRuntime.isModelAvailable ? .green : .red,
+                    monospaced: false
+                )
+
+                infoRow(
                     label: "Helper",
                     value: model.speechRuntime.helperStatusLine,
                     valueColor: model.speechRuntime.isHelperAvailable ? .green : .red,

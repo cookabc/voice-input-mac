@@ -4,17 +4,25 @@ struct SpeechRuntimeStatus {
     let providerIdentifier: String
     let providerDisplayName: String
     let modelName: String?
+    let modelStatusLine: String
     let helperPath: String
     let helperStatusLine: String
     let helperOriginLine: String
     let isHelperAvailable: Bool
+    let isModelAvailable: Bool
     let supportDirectoryPath: String
     let configFilePath: String
 
     var summaryLine: String {
-        isHelperAvailable
-            ? "\(providerDisplayName) runtime ready"
-            : "\(providerDisplayName) helper unavailable"
+        if !isHelperAvailable {
+            return "\(providerDisplayName) helper unavailable"
+        }
+
+        if !isModelAvailable {
+            return "\(providerDisplayName) model missing"
+        }
+
+        return "\(providerDisplayName) runtime ready"
     }
 }
 
@@ -22,8 +30,10 @@ struct SpeechRuntimeStatus {
 enum SpeechRuntimeProbe {
     static func currentStatus(configManager: any ConfigManaging = ConfigManager.shared) -> SpeechRuntimeStatus {
         let providerIdentifier = configManager.asrProvider
+        let selectedModel = SpeechModelIdentifier(providerIdentifier: providerIdentifier)
         let helperPath = AppPaths.coliHelperPath
         let isHelperAvailable = ColiTranscriber.isAvailable(at: helperPath)
+        let isModelAvailable = selectedModel?.isInstalled ?? true
 
         let providerDisplayName: String
         if providerIdentifier.lowercased().hasPrefix("coli") {
@@ -35,13 +45,15 @@ enum SpeechRuntimeProbe {
         return SpeechRuntimeStatus(
             providerIdentifier: providerIdentifier,
             providerDisplayName: providerDisplayName,
-            modelName: configuredModelName(from: providerIdentifier),
+            modelName: selectedModel?.displayName ?? configuredModelName(from: providerIdentifier),
+            modelStatusLine: selectedModel.map { $0.isInstalled ? "Installed locally" : "Model files missing" } ?? "Managed externally",
             helperPath: helperPath,
             helperStatusLine: isHelperAvailable
                 ? "Executable helper found"
                 : "Helper missing or not executable",
             helperOriginLine: helperOriginLine(for: helperPath),
             isHelperAvailable: isHelperAvailable,
+            isModelAvailable: isModelAvailable,
             supportDirectoryPath: AppPaths.appSupportDirectory.path,
             configFilePath: AppPaths.configFile.path
         )

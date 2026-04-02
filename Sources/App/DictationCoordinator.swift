@@ -144,19 +144,22 @@ final class DictationCoordinator {
             var transcript = liveText
             let speechRuntime = SpeechRuntimeProbe.currentStatus(configManager: configManager)
             let coliPath = speechRuntime.helperPath
+            let selectedModel = SpeechModelIdentifier(providerIdentifier: speechRuntime.providerIdentifier)?.rawValue
+                ?? ColiTranscriber.defaultModel
 
-            if speechRuntime.isHelperAvailable {
+            if speechRuntime.isHelperAvailable && speechRuntime.isModelAvailable {
                 do {
                     let result = try await transcriber.transcribe(
                         filePath: audioPath,
-                        coliPath: coliPath
+                        coliPath: coliPath,
+                        model: selectedModel
                     )
                     transcript = result.text
                 } catch {
                     MurmurLogger.speech.error("Coli failed, falling back to live text: \(error.localizedDescription, privacy: .public)")
                 }
             } else {
-                MurmurLogger.speech.error("Coli helper unavailable at \(coliPath, privacy: .public); falling back to live preview text")
+                MurmurLogger.speech.error("Coli runtime unavailable at \(coliPath, privacy: .public); falling back to live preview text")
             }
 
             guard !Task.isCancelled else {
@@ -166,9 +169,9 @@ final class DictationCoordinator {
 
             transcript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !transcript.isEmpty else {
-                let errorText = speechRuntime.isHelperAvailable
+                let errorText = (speechRuntime.isHelperAvailable && speechRuntime.isModelAvailable)
                     ? "No speech detected"
-                    : "Speech runtime unavailable. Check Settings > Speech Runtime."
+                    : "Speech runtime unavailable. Check Settings > Speech Models."
                 showTransientCapsuleState(.error, text: errorText, audioPath: audioPath)
                 return
             }

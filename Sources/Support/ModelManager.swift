@@ -69,6 +69,18 @@ enum SpeechModelIdentifier: String, CaseIterable, Identifiable {
         guard providerIdentifier.hasPrefix("coli-") else { return nil }
         self.init(rawValue: String(providerIdentifier.dropFirst(5)))
     }
+
+    var installDirectory: URL {
+        AppPaths.coliModelsDirectory.appendingPathComponent(modelDirectoryName, isDirectory: true)
+    }
+
+    var requiredFileURL: URL {
+        installDirectory.appendingPathComponent(requiredFileName)
+    }
+
+    var isInstalled: Bool {
+        FileManager.default.fileExists(atPath: requiredFileURL.path)
+    }
 }
 
 struct SpeechModelState: Identifiable, Equatable {
@@ -186,13 +198,11 @@ final class ModelManager {
     }
 
     private func installDirectory(for identifier: SpeechModelIdentifier) -> URL {
-        AppPaths.coliModelsDirectory.appendingPathComponent(identifier.modelDirectoryName, isDirectory: true)
+        identifier.installDirectory
     }
 
     private func isInstalled(_ identifier: SpeechModelIdentifier) -> Bool {
-        let modelDirectory = installDirectory(for: identifier)
-        let checkFile = modelDirectory.appendingPathComponent(identifier.requiredFileName)
-        return FileManager.default.fileExists(atPath: checkFile.path)
+        identifier.isInstalled
     }
 
     private static func extractArchive(at archiveURL: URL, into directory: URL) async throws {
