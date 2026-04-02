@@ -69,25 +69,34 @@ private struct WaveformBar: View {
     let weight: Float
 
     @State private var smoothed: Float = 0
+    @State private var timer: Timer?
 
     var body: some View {
-        let _ = updateSmoothed()
         let clamped = min(1, max(0.05, smoothed))
 
         RoundedRectangle(cornerRadius: 2)
             .fill(Color.white.opacity(0.9))
             .frame(width: 4, height: CGFloat(clamped) * 28 + 4)
+            .onAppear {
+                startSmoothing()
+            }
+            .onDisappear {
+                timer?.invalidate()
+                timer = nil
+            }
     }
 
-    /// Called on every SwiftUI body evaluation; applies attack/release smoothing.
-    private func updateSmoothed() {
-        let jitter = Float.random(in: -0.04...0.04)
-        let target = level * weight + jitter
-        let rate: Float = target > smoothed ? 0.40 : 0.15
-        let next = smoothed + (target - smoothed) * rate
-        // Avoid triggering a view update loop; only write when the delta matters.
-        if abs(next - smoothed) > 0.001 {
-            DispatchQueue.main.async { smoothed = next }
+    /// Applies attack/release smoothing on a timer for natural motion.
+    private func startSmoothing() {
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { _ in
+            let jitter = Float.random(in: -0.04...0.04)
+            let target = level * weight + jitter
+            let rate: Float = target > self.smoothed ? 0.40 : 0.15
+            let next = self.smoothed + (target - self.smoothed) * rate
+            if abs(next - self.smoothed) > 0.001 {
+                self.smoothed = next
+            }
         }
     }
 }
