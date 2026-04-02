@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - ViewModel
 
 enum CapsuleState {
-    case recording, transcribing, refining, cancelled
+    case recording, transcribing, refining, cancelled, error
 }
 
 @MainActor
@@ -24,19 +24,26 @@ struct CapsuleView: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            // 5-bar waveform
-            HStack(spacing: 3) {
-                ForEach(Array(weights.enumerated()), id: \.offset) { _, weight in
-                    WaveformBar(level: viewModel.audioLevel, weight: weight)
+            if let leadingSymbol {
+                Image(systemName: leadingSymbol)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(statusForegroundColor)
+                    .frame(width: 24, height: 24)
+            } else {
+                // 5-bar waveform
+                HStack(spacing: 3) {
+                    ForEach(Array(weights.enumerated()), id: \.offset) { _, weight in
+                        WaveformBar(level: viewModel.audioLevel, weight: weight)
+                    }
                 }
+                .frame(width: 44, height: 32)
             }
-            .frame(width: 44, height: 32)
 
             // Live text / status label
             if !displayText.isEmpty {
                 Text(displayText)
                     .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(statusForegroundColor)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .transition(.opacity.combined(with: .move(edge: .leading)))
@@ -54,6 +61,27 @@ struct CapsuleView: View {
             return viewModel.text.isEmpty ? "Transcribing…" : viewModel.text
         case .refining:      return "Refining…"
         case .cancelled:     return "Cancelled"
+        case .error:         return viewModel.text.isEmpty ? "Something went wrong" : viewModel.text
+        }
+    }
+
+    private var leadingSymbol: String? {
+        switch viewModel.state {
+        case .cancelled:
+            return "xmark.circle.fill"
+        case .error:
+            return "exclamationmark.triangle.fill"
+        case .recording, .transcribing, .refining:
+            return nil
+        }
+    }
+
+    private var statusForegroundColor: Color {
+        switch viewModel.state {
+        case .error:
+            return Color(red: 1.0, green: 0.82, blue: 0.28)
+        case .cancelled, .recording, .transcribing, .refining:
+            return .white
         }
     }
 }

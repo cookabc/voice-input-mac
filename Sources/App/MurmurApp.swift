@@ -214,7 +214,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MurmurLogger.speech.info("Recording started: \(path, privacy: .public)")
         } catch {
             MurmurLogger.speech.error("Recording failed: \(error.localizedDescription, privacy: .public)")
-            state = .idle
+            showTransientCapsuleState(.error, text: error.localizedDescription, audioPath: nil)
             return
         }
 
@@ -268,7 +268,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
             // Nothing to paste?
             guard !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                finish(audioPath: audioPath)
+                showTransientCapsuleState(.error, text: "No speech detected", audioPath: audioPath)
                 return
             }
 
@@ -295,9 +295,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
             // ── Text injection ────────────────────────────────────────────────
             state = .inserting
-            await injectText(transcript)
-
-            finish(audioPath: audioPath)
+            switch await injectText(transcript) {
+            case .success:
+                finish(audioPath: audioPath)
+            case .failure(let error):
+                MurmurLogger.ui.error("Text insertion failed: \(error.localizedDescription, privacy: .public)")
+                showTransientCapsuleState(.error, text: error.localizedDescription, audioPath: audioPath, hideAfter: 1.4)
+            }
         }
     }
 
@@ -318,39 +322,67 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         capsulePanel.viewModel.state = .cancelled
         capsulePanel.viewModel.text = ""
         capsulePanel.viewModel.audioLevel = 0
-
-        // Brief flash of "Cancelled" then hide.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            self?.finish(audioPath: audioPath)
-        }
+        showTransientCapsuleState(.cancelled, text: "Cancelled", audioPath: audioPath, hideAfter: 0.5)
     }
 
     // MARK: - Text injection (IME-safe, clipboard-restore)
 
-    private func injectText(_ text: String) async {
+    private func injectText(_ text: String) async -> Result<Void, Error> {
         let savedIME = IMEService.switchToASCII()
         let savedClipboard = TextInsertionService.saveClipboard()
 
         TextInsertionService.copyToClipboard(text)
-        try? TextInsertionService.simulatePaste()
 
-        // Short delay so the paste event reaches the front app.
-        try? await Task.sleep(nanoseconds: 150_000_000)
+        do {
+            try TextInsertionService.simulatePaste()
 
-        if let saved = savedClipboard {
-            TextInsertionService.restoreClipboard(saved)
+            // Short delay so the paste event reaches the front app.
+            try await Task.sleep(nanoseconds: 150_000_000)
+
+            if let saved = savedClipboard {
+                TextInsertionService.restoreClipboard(saved)
+            }
+            if let ime = savedIME {
+                IMEService.restore(ime)
+            }
+
+            return .success(())
+        } catch {
+            if let ime = savedIME {
+                IMEService.restore(ime)
+            }
+            return .failure(error)
         }
-        if let ime = savedIME {
-            IMEService.restore(ime)
+    }
+
+    private func showTransientCapsuleState(
+        _ capsuleState: CapsuleState,
+        text: String,
+        audioPath: String?,
+        hideAfter delay: TimeInterval = 1.0
+    ) {
+        capsulePanel.viewModel.state = capsuleState
+        capsulePanel.viewModel.text = text
+        capsulePanel.viewModel.audioLevel = 0
+        capsulePanel.updateWidth(for: text)
+
+        if !capsulePanel.isVisible {
+            capsulePanel.showCapsule()
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            self?.finish(audioPath: audioPath)
         }
     }
 
     // MARK: - Cleanup
 
-    private func finish(audioPath: String) {
+    private func finish(audioPath: String?) {
         capsulePanel.hideCapsule()
         state = .idle
         processingTask = nil
-        try? FileManager.default.removeItem(atPath: audioPath)
+        if let audioPath {
+            try? FileManager.default.removeItem(atPath: audioPath)
+        }
     }
 }
