@@ -39,6 +39,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Lifecycle
 
     func applicationWillTerminate(_ notification: Notification) {
+        processingTask?.cancel()
+        processingTask = nil
+
         // Remove ESC monitors to prevent memory leaks
         if let localMonitor = escLocalMonitor {
             NSEvent.removeMonitor(localMonitor)
@@ -96,7 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { @MainActor in self?.stopDictation() }
         }
         if !fnMonitor.start() {
-            fputs("[Murmur] CGEvent tap failed — grant Accessibility in System Settings.\n", stderr)
+            MurmurLogger.app.error("CGEvent tap failed; accessibility permission is required")
             showAccessibilityAlert()
         }
     }
@@ -188,9 +191,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Start recording.
         do {
             let path = try audioSession.startRecording()
-            fputs("[Murmur] Recording → \(path)\n", stderr)
+            MurmurLogger.speech.info("Recording started: \(path, privacy: .public)")
         } catch {
-            fputs("[Murmur] Recording failed: \(error.localizedDescription)\n", stderr)
+            MurmurLogger.speech.error("Recording failed: \(error.localizedDescription, privacy: .public)")
             state = .idle
             return
         }
@@ -200,7 +203,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.liveSpeech?.appendBuffer(buffer, at: time)
         }
         do { try liveSpeech?.start() } catch {
-            fputs("[Murmur] Live speech start failed: \(error.localizedDescription)\n", stderr)
+            MurmurLogger.speech.error("Live speech start failed: \(error.localizedDescription, privacy: .public)")
         }
 
         // Show capsule.
@@ -234,7 +237,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     )
                     transcript = result.text
                 } catch {
-                    fputs("[Murmur] Coli failed, using live text: \(error.localizedDescription)\n", stderr)
+                    MurmurLogger.speech.error("Coli failed, falling back to live text: \(error.localizedDescription, privacy: .public)")
                 }
             }
 
@@ -261,7 +264,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         text: transcript, dictionary: dict
                     )
                 } catch {
-                    fputs("[Murmur] LLM polish failed: \(error.localizedDescription)\n", stderr)
+                    MurmurLogger.network.error("LLM polish failed: \(error.localizedDescription, privacy: .public)")
                 }
             }
 
@@ -327,6 +330,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func finish(audioPath: String) {
         capsulePanel.hideCapsule()
         state = .idle
+        processingTask = nil
         try? FileManager.default.removeItem(atPath: audioPath)
     }
 }

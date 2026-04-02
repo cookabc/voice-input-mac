@@ -42,32 +42,28 @@ final class LiveSpeechRecognizer {
         request = req
 
         task = recognizer.recognitionTask(with: req) { [weak self] result, error in
-            DispatchQueue.main.async {
-                guard let self else { return }
+            guard let self else { return }
 
-                if let result {
-                    let segment = result.bestTranscription.formattedString
-                    let confirmed = self.confirmedText
-                    let full = confirmed.isEmpty ? segment : "\(confirmed) \(segment)"
+            if let result {
+                let segment = result.bestTranscription.formattedString
+                let confirmed = self.confirmedText
+                let full = confirmed.isEmpty ? segment : "\(confirmed) \(segment)"
 
-                    self.onPartialResult?(full)
+                self.onPartialResult?(full)
 
-                    if result.isFinal {
-                        self.confirmedText = full
-                        // Auto-restart — SFSpeechRecognitionTask expires after ~1 min.
-                        if self.isActive { self.beginTask() }
-                    }
+                if result.isFinal {
+                    self.confirmedText = full
+                    // Auto-restart — SFSpeechRecognitionTask expires after ~1 min.
+                    if self.isActive { self.beginTask() }
                 }
+            }
 
-                if let err = error {
-                    let code = (err as NSError).code
-                    // 1110 = no speech detected, 203 = cancelled, 301 = service reset
-                    guard code != 1110, code != 203, code != 301 else { return }
-                    if self.isActive {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            self.beginTask()
-                        }
-                    }
+            if let err = error {
+                let code = (err as NSError).code
+                // 1110 = no speech detected, 203 = cancelled, 301 = service reset
+                guard code != 1110, code != 203, code != 301 else { return }
+                if self.isActive {
+                    self.beginTask()
                 }
             }
         }

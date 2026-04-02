@@ -90,13 +90,13 @@ private func fnTapCallback(
 
     if fnDown, !monitor.fnIsDown {
         monitor.fnIsDown = true
-        DispatchQueue.main.async { monitor.onFnDown?() }
+        monitor.onFnDown?()
         return nil  // suppress → no emoji picker
     }
 
     if !fnDown, monitor.fnIsDown {
         monitor.fnIsDown = false
-        DispatchQueue.main.async { monitor.onFnUp?() }
+        monitor.onFnUp?()
         return nil
     }
 

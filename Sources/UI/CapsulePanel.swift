@@ -84,12 +84,12 @@ final class CapsulePanel: NSPanel {
                 display: true
             )
         }, completionHandler: { [weak self] in
-            guard let self else { return }
-            self.orderOut(nil)
             Task { @MainActor [weak self] in
-                self?.viewModel.audioLevel = 0
-                self?.viewModel.text = ""
-                self?.viewModel.state = .recording
+                guard let self else { return }
+                self.orderOut(nil)
+                self.viewModel.audioLevel = 0
+                self.viewModel.text = ""
+                self.viewModel.state = .recording
             }
         })
     }

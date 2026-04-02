@@ -163,7 +163,7 @@ actor LLMPolisher {
         let model   = configuredModel
 
         let endpointURL = "\(base)/v1/chat/completions"
-        fputs("[LLMPolisher] POST \(endpointURL)  model=\(model)\n", stderr)
+        MurmurLogger.network.info("POST \(endpointURL, privacy: .public) model=\(model, privacy: .public)")
 
         guard let url = URL(string: endpointURL) else {
             throw LLMPolisherError.unexpectedResponse
@@ -204,7 +204,7 @@ actor LLMPolisher {
 
         if let http = response as? HTTPURLResponse, http.statusCode != 200 {
             let body = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            fputs("[LLMPolisher] HTTP \(http.statusCode) from \(url.absoluteString)\n\(body)\n", stderr)
+            MurmurLogger.network.error("HTTP \(http.statusCode) from \(url.absoluteString, privacy: .public): \(body, privacy: .public)")
             throw LLMPolisherError.httpError(http.statusCode, body, url.absoluteString)
         }
 

@@ -1,10 +1,10 @@
-// swift-tools-version: 5.10
+// swift-tools-version: 6.3
 import PackageDescription
 
 let package = Package(
     name: "Murmur",
     platforms: [
-        .macOS(.v14),
+        .macOS(.v26),
     ],
     products: [
         .executable(name: "Murmur", targets: ["Murmur"]),

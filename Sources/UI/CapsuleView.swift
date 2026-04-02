@@ -7,16 +7,17 @@ enum CapsuleState {
 }
 
 @MainActor
-final class CapsuleViewModel: ObservableObject {
-    @Published var audioLevel: Float = 0
-    @Published var text: String = ""
-    @Published var state: CapsuleState = .recording
+@Observable
+final class CapsuleViewModel {
+    var audioLevel: Float = 0
+    var text: String = ""
+    var state: CapsuleState = .recording
 }
 
 // MARK: - Capsule root view
 
 struct CapsuleView: View {
-    @ObservedObject var viewModel: CapsuleViewModel
+    var viewModel: CapsuleViewModel
 
     /// Per-bar amplitude weights: center bar tallest, outer bars shorter.
     private let weights: [Float] = [0.5, 0.8, 1.0, 0.75, 0.55]
@@ -90,12 +91,14 @@ private struct WaveformBar: View {
     private func startSmoothing() {
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { _ in
-            let jitter = Float.random(in: -0.04...0.04)
-            let target = level * weight + jitter
-            let rate: Float = target > self.smoothed ? 0.40 : 0.15
-            let next = self.smoothed + (target - self.smoothed) * rate
-            if abs(next - self.smoothed) > 0.001 {
-                self.smoothed = next
+            Task { @MainActor in
+                let jitter = Float.random(in: -0.04...0.04)
+                let target = level * weight + jitter
+                let rate: Float = target > smoothed ? 0.40 : 0.15
+                let next = smoothed + (target - smoothed) * rate
+                if abs(next - smoothed) > 0.001 {
+                    smoothed = next
+                }
             }
         }
     }
