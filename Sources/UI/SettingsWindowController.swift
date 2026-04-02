@@ -22,7 +22,7 @@ final class SettingsWindowController {
         let win = NSWindow(contentViewController: hostingController)
         win.title = "Murmur Settings"
         win.styleMask = [.titled, .closable, .miniaturizable]
-        win.setContentSize(NSSize(width: 440, height: 400))
+        win.setContentSize(NSSize(width: 560, height: 560))
         win.center()
         win.isReleasedWhenClosed = false
 
@@ -39,6 +39,7 @@ private struct SettingsContentView: View {
     @State private var apiKey: String
     @State private var model: String
     @State private var editBeforePaste: Bool
+    @State private var speechRuntime: SpeechRuntimeStatus
     @State private var statusMessage = ""
     @State private var isTesting = false
 
@@ -55,105 +56,181 @@ private struct SettingsContentView: View {
         _apiKey = State(initialValue: polisher.apiKey ?? "")
         _model = State(initialValue: polisher.configuredModel)
         _editBeforePaste = State(initialValue: config.editBeforePaste)
+        _speechRuntime = State(initialValue: SpeechRuntimeProbe.currentStatus())
         _hotkeyDisplay = State(initialValue: hotkeyManager?.displayString ?? "⌥Space")
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            // ── Hotkey section ──
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Hotkey (alternative to Fn)")
-                    .font(.headline)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // ── Hotkey section ──
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Hotkey (alternative to Fn)")
+                        .font(.headline)
+
+                    HStack {
+                        Text("Shortcut")
+                            .frame(width: 88, alignment: .trailing)
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(isRecordingHotkey
+                                      ? Color.accentColor.opacity(0.15)
+                                      : Color(nsColor: .controlBackgroundColor))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(isRecordingHotkey ? Color.accentColor : Color.gray.opacity(0.3))
+                                )
+                            Text(isRecordingHotkey ? "Press shortcut…" : hotkeyDisplay)
+                                .foregroundStyle(isRecordingHotkey ? .secondary : .primary)
+                        }
+                        .frame(height: 28)
+                        .onTapGesture { isRecordingHotkey = true }
+                        .background(
+                            HotkeyRecorder(
+                                isRecording: $isRecordingHotkey,
+                                onCaptured: { mods, keyCode in
+                                    hotkeyManager?.updateShortcut(modifiers: mods, keyCode: keyCode)
+                                    hotkeyDisplay = hotkeyManager?.displayString ?? "⌥Space"
+                                }
+                            )
+                        )
+
+                        Button("Reset") {
+                            hotkeyManager?.resetToDefault()
+                            hotkeyDisplay = hotkeyManager?.displayString ?? "⌥Space"
+                        }
+                        .controlSize(.small)
+                    }
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Speech Runtime")
+                        .font(.headline)
+
+                    Text(speechRuntime.summaryLine)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(speechRuntime.isHelperAvailable ? Color.green : Color.red)
+
+                    infoRow(label: "Provider", value: speechRuntime.providerIdentifier)
+
+                    if let modelName = speechRuntime.modelName {
+                        infoRow(label: "Model", value: modelName)
+                    }
+
+                    infoRow(
+                        label: "Helper",
+                        value: speechRuntime.helperStatusLine,
+                        valueColor: speechRuntime.isHelperAvailable ? .green : .red,
+                        monospaced: false
+                    )
+                    infoRow(label: "Origin", value: speechRuntime.helperOriginLine, monospaced: false)
+                    infoRow(label: "Path", value: speechRuntime.helperPath)
+                    infoRow(label: "Support", value: speechRuntime.supportDirectoryPath)
+                    infoRow(label: "Config", value: speechRuntime.configFilePath)
+
+                    Text("This section mirrors the current final-transcription runtime. Runtime switching and model management will extend from here.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    HStack {
+                        Button("Refresh Runtime") { refreshSpeechRuntime() }
+
+                        Button("Reveal Helper") {
+                            revealInFinder(path: speechRuntime.helperPath)
+                        }
+                        .disabled(!FileManager.default.fileExists(atPath: speechRuntime.helperPath))
+
+                        Button("Reveal Support Files") {
+                            revealInFinder(path: speechRuntime.supportDirectoryPath)
+                        }
+                    }
+                }
+
+                Divider()
+
+                // ── LLM section ──
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("LLM API Configuration")
+                        .font(.headline)
+
+                    fieldRow(label: "Base URL", text: $baseURL)
+                    fieldRow(label: "API Key", text: $apiKey, secure: true)
+                    fieldRow(label: "Model", text: $model)
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Workflow")
+                        .font(.headline)
+
+                    Toggle("Show review window before inserting text", isOn: $editBeforePaste)
+                }
 
                 HStack {
-                    Text("Shortcut")
-                        .frame(width: 70, alignment: .trailing)
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(isRecordingHotkey
-                                  ? Color.accentColor.opacity(0.15)
-                                  : Color(nsColor: .controlBackgroundColor))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .stroke(isRecordingHotkey ? Color.accentColor : Color.gray.opacity(0.3))
-                            )
-                        Text(isRecordingHotkey ? "Press shortcut…" : hotkeyDisplay)
-                            .foregroundStyle(isRecordingHotkey ? .secondary : .primary)
-                    }
-                    .frame(height: 28)
-                    .onTapGesture { isRecordingHotkey = true }
-                    .background(
-                        HotkeyRecorder(
-                            isRecording: $isRecordingHotkey,
-                            onCaptured: { mods, keyCode in
-                                hotkeyManager?.updateShortcut(modifiers: mods, keyCode: keyCode)
-                                hotkeyDisplay = hotkeyManager?.displayString ?? "⌥Space"
-                            }
-                        )
-                    )
+                    Button("Test Connection") { testConnection() }
+                        .disabled(isTesting)
 
-                    Button("Reset") {
-                        hotkeyManager?.resetToDefault()
-                        hotkeyDisplay = hotkeyManager?.displayString ?? "⌥Space"
+                    Spacer()
+
+                    if !statusMessage.isEmpty {
+                        Text(statusMessage)
+                            .font(.caption)
+                            .foregroundColor(statusMessage.hasPrefix("✓") ? .green : .secondary)
                     }
-                    .controlSize(.small)
+
+                    Spacer()
+
+                    Button("Save") { save() }
+                        .keyboardShortcut(.defaultAction)
                 }
             }
-
-            Divider()
-
-            // ── LLM section ──
-            VStack(alignment: .leading, spacing: 8) {
-                Text("LLM API Configuration")
-                    .font(.headline)
-
-                fieldRow(label: "Base URL", text: $baseURL)
-                fieldRow(label: "API Key", text: $apiKey, secure: true)
-                fieldRow(label: "Model", text: $model)
-            }
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Workflow")
-                    .font(.headline)
-
-                Toggle("Show review window before inserting text", isOn: $editBeforePaste)
-            }
-
-            HStack {
-                Button("Test Connection") { testConnection() }
-                    .disabled(isTesting)
-
-                Spacer()
-
-                if !statusMessage.isEmpty {
-                    Text(statusMessage)
-                        .font(.caption)
-                        .foregroundColor(statusMessage.hasPrefix("✓") ? .green : .secondary)
-                }
-
-                Spacer()
-
-                Button("Save") { save() }
-                    .keyboardShortcut(.defaultAction)
-            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(20)
-        .frame(width: 440, height: 400)
+        .frame(width: 560, height: 560)
     }
 
     @ViewBuilder
     private func fieldRow(label: String, text: Binding<String>, secure: Bool = false) -> some View {
         HStack {
             Text(label)
-                .frame(width: 70, alignment: .trailing)
+                .frame(width: 88, alignment: .trailing)
             if secure {
                 SecureField("", text: text)
                     .textFieldStyle(.roundedBorder)
             } else {
                 TextField("", text: text)
                     .textFieldStyle(.roundedBorder)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func infoRow(
+        label: String,
+        value: String,
+        valueColor: Color = .primary,
+        monospaced: Bool = true
+    ) -> some View {
+        HStack(alignment: .top) {
+            Text(label)
+                .frame(width: 88, alignment: .trailing)
+                .foregroundStyle(.secondary)
+
+            if monospaced {
+                Text(value)
+                    .font(.system(.body, design: .monospaced))
+                    .foregroundStyle(valueColor)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Text(value)
+                    .foregroundStyle(valueColor)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
@@ -168,6 +245,10 @@ private struct SettingsContentView: View {
         statusMessage = saved ? "✓ Saved" : "✗ Saved config, but failed to store API key in Keychain"
     }
 
+    private func refreshSpeechRuntime() {
+        speechRuntime = SpeechRuntimeProbe.currentStatus()
+    }
+
     private func testConnection() {
         save()
         guard !statusMessage.hasPrefix("✗") else { return }
@@ -177,6 +258,17 @@ private struct SettingsContentView: View {
             let probe = await LLMPolisher.shared.runtimeProbe()
             statusMessage = probe.isReady ? "✓ \(probe.line)" : "✗ \(probe.line)"
             isTesting = false
+        }
+    }
+
+    private func revealInFinder(path: String) {
+        let url = URL(fileURLWithPath: path)
+        let fileManager = FileManager.default
+
+        if fileManager.fileExists(atPath: path) {
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        } else {
+            NSWorkspace.shared.open(url.deletingLastPathComponent())
         }
     }
 }

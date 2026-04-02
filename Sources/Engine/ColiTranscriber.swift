@@ -21,6 +21,8 @@ enum ColiTranscriberError: Error, LocalizedError {
 }
 
 actor ColiTranscriber {
+    static let defaultModel = "sensevoice"
+
     private struct Response: Decodable {
         let text: String
         let text_clean: String?
@@ -35,7 +37,7 @@ actor ColiTranscriber {
     func transcribe(
         filePath: String,
         coliPath: String,
-        model: String = "sensevoice",
+        model: String = ColiTranscriber.defaultModel,
         polish: Bool = true
     ) async throws -> TranscriptionResult {
         guard FileManager.default.fileExists(atPath: filePath) else {
