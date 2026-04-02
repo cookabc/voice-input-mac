@@ -38,6 +38,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Lifecycle
 
+    func applicationWillTerminate(_ notification: Notification) {
+        // Remove ESC monitors to prevent memory leaks
+        if let localMonitor = escLocalMonitor {
+            NSEvent.removeMonitor(localMonitor)
+            escLocalMonitor = nil
+        }
+        if let globalMonitor = escGlobalMonitor {
+            NSEvent.removeMonitor(globalMonitor)
+            escGlobalMonitor = nil
+        }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
@@ -85,6 +97,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if !fnMonitor.start() {
             fputs("[Murmur] CGEvent tap failed — grant Accessibility in System Settings.\n", stderr)
+            showAccessibilityAlert()
+        }
+    }
+
+    private func showAccessibilityAlert() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            let alert = NSAlert()
+            alert.messageText = "需要辅助功能权限"
+            alert.informativeText = "Murmur 需要辅助功能权限来监听 Fn 键。\n\n请前往：系统设置 → 隐私与安全性 → 辅助功能\n然后添加并启用 Murmur。"
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "打开设置")
+            alert.addButton(withTitle: "稍后")
+
+            if alert.runModal() == .alertFirstButtonReturn {
+                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
+
+            // Update menu bar to show warning
+            self?.menuBar.setAccessibilityWarning(true)
         }
     }
 
