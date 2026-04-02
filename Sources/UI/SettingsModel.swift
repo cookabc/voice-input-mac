@@ -13,6 +13,7 @@ final class SettingsModel {
     var isTesting: Bool = false
     var hotkeyDisplay: String = "⌥Space"
     var isRecordingHotkey: Bool = false
+    let modelManager: ModelManager
 
     @ObservationIgnored
     private let configManager: any ConfigManaging
@@ -30,6 +31,7 @@ final class SettingsModel {
     ) {
         self.configManager = configManager
         self.polisher = polisher
+        self.modelManager = ModelManager(configManager: configManager)
         self.hotkeyManager = hotkeyManager
         reload()
     }
@@ -44,6 +46,7 @@ final class SettingsModel {
         apiKey = polisher.apiKey ?? ""
         model = polisher.configuredModel
         editBeforePaste = configManager.editBeforePaste
+        modelManager.refresh()
         speechRuntime = SpeechRuntimeProbe.currentStatus(configManager: configManager)
         hotkeyDisplay = hotkeyManager?.displayString ?? "⌥Space"
         statusMessage = ""
@@ -76,7 +79,18 @@ final class SettingsModel {
     }
 
     func refreshSpeechRuntime() {
+        modelManager.refresh()
         speechRuntime = SpeechRuntimeProbe.currentStatus(configManager: configManager)
+    }
+
+    func selectSpeechModel(_ identifier: SpeechModelIdentifier) {
+        modelManager.selectModel(identifier)
+        refreshSpeechRuntime()
+    }
+
+    func installSpeechModel(_ identifier: SpeechModelIdentifier) async {
+        await modelManager.installModel(identifier)
+        refreshSpeechRuntime()
     }
 
     func applyHotkey(modifiers: NSEvent.ModifierFlags, keyCode: UInt16) {

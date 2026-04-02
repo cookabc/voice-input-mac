@@ -46,6 +46,12 @@ enum AppPaths {
         appSupportDirectory.appendingPathComponent("dictionary.txt")
     }
 
+    static var coliModelsDirectory: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".coli", isDirectory: true)
+            .appendingPathComponent("models", isDirectory: true)
+    }
+
     static var legacyDictionaryFile: URL {
         legacySupportDirectory.appendingPathComponent("dictionary.txt")
     }

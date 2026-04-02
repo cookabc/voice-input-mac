@@ -6,6 +6,7 @@ protocol ConfigManaging: AnyObject {
     var editBeforePaste: Bool { get }
 
     func migrateIfNeeded()
+    func saveASRProvider(_ provider: String)
 
     @discardableResult
     func saveLLMConfiguration(baseURL: String, model: String, apiKey: String) -> Bool

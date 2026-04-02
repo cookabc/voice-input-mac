@@ -136,6 +136,14 @@ final class ConfigManager: ObservableObject {
         writeConfigFile(nextConfig)
     }
 
+    func saveASRProvider(_ provider: String) {
+        var nextConfig = config
+        nextConfig.asrProvider = provider
+        config = nextConfig
+        syncToUserDefaults(nextConfig)
+        writeConfigFile(nextConfig)
+    }
+
     /// First-launch migration: writes current UserDefaults values to the JSON file
     /// if the file doesn't already exist.
     func migrateIfNeeded() {
