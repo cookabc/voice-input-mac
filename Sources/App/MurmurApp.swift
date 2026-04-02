@@ -18,16 +18,44 @@ struct MurmurApp {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
+    private let configManager: any ConfigManaging
+    private let promptManager: any PromptManaging
+    private let polisher: LLMPolisher
+
     // ── Components ────────────────────────────────────────────────────────────
-    private let menuBar = MenuBarController()
-    private let settingsController = SettingsWindowController()
-    private let fnMonitor = FnKeyMonitor()
-    private let hotkeyManager = HotkeyManager()
+    private let menuBar: MenuBarController
+    private let settingsController: SettingsWindowController
+    private let fnMonitor: FnKeyMonitor
+    private let hotkeyManager: HotkeyManager
 
     private lazy var capsulePanel = CapsulePanel()
-    private lazy var dictationCoordinator = DictationCoordinator(capsulePanel: capsulePanel)
+    private lazy var dictationCoordinator = DictationCoordinator(
+        capsulePanel: capsulePanel,
+        configManager: configManager,
+        polisher: polisher
+    )
     private var escLocalMonitor: Any?
     private var escGlobalMonitor: Any?
+
+    override init() {
+        let configManager = ConfigManager.shared
+        let promptManager = PromptManager.shared
+        let polisher = LLMPolisher(
+            promptProvider: { text in
+                (promptManager.systemPrompt, promptManager.renderUserPrompt(text: text))
+            }
+        )
+
+        self.configManager = configManager
+        self.promptManager = promptManager
+        self.polisher = polisher
+        self.menuBar = MenuBarController(configManager: configManager)
+        self.settingsController = SettingsWindowController(configManager: configManager, polisher: polisher)
+        self.fnMonitor = FnKeyMonitor()
+        self.hotkeyManager = HotkeyManager()
+
+        super.init()
+    }
 
     // MARK: - Lifecycle
 
@@ -62,8 +90,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Seed support files.
         DictionaryManager.ensureFileExists()
-        PromptManager.shared.seedDefaultsIfNeeded()
-        ConfigManager.shared.migrateIfNeeded()
+        promptManager.seedDefaultsIfNeeded()
+        configManager.migrateIfNeeded()
         MurmurLogger.app.info("Murmur support directory: \(AppPaths.appSupportDirectory.path, privacy: .public)")
 
         setupMenuBar()

@@ -15,6 +15,8 @@ final class DictationCoordinator {
     private let audioSession: AudioSession
     private let transcriber: ColiTranscriber
     private let transcriptEditPanel: TranscriptEditPanelController
+    private let configManager: any ConfigManaging
+    private let polisher: LLMPolisher
 
     private var liveSpeech: LiveSpeechRecognizer?
     private var state: State = .idle
@@ -28,12 +30,16 @@ final class DictationCoordinator {
         capsulePanel: CapsulePanel,
         audioSession: AudioSession = AudioSession(),
         transcriber: ColiTranscriber = ColiTranscriber(),
-        transcriptEditPanel: TranscriptEditPanelController = TranscriptEditPanelController()
+        transcriptEditPanel: TranscriptEditPanelController = TranscriptEditPanelController(),
+        configManager: any ConfigManaging = ConfigManager.shared,
+        polisher: LLMPolisher = .shared
     ) {
         self.capsulePanel = capsulePanel
         self.audioSession = audioSession
         self.transcriber = transcriber
         self.transcriptEditPanel = transcriptEditPanel
+        self.configManager = configManager
+        self.polisher = polisher
     }
 
     func handlePrimaryTrigger() {
@@ -136,7 +142,7 @@ final class DictationCoordinator {
 
         processingTask = Task {
             var transcript = liveText
-            let speechRuntime = SpeechRuntimeProbe.currentStatus()
+            let speechRuntime = SpeechRuntimeProbe.currentStatus(configManager: configManager)
             let coliPath = speechRuntime.helperPath
 
             if speechRuntime.isHelperAvailable {
@@ -175,7 +181,7 @@ final class DictationCoordinator {
 
                 do {
                     let dict = DictionaryManager.loadEntries()
-                    transcript = try await LLMPolisher.shared.polish(
+                    transcript = try await polisher.polish(
                         text: transcript,
                         dictionary: dict
                     )
@@ -239,7 +245,7 @@ final class DictationCoordinator {
     }
 
     private func resolveTranscriptAction(_ transcript: String) async -> TranscriptEditAction {
-        guard ConfigManager.shared.editBeforePaste else {
+        guard configManager.editBeforePaste else {
             return .insert(transcript)
         }
 

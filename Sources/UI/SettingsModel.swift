@@ -15,9 +15,21 @@ final class SettingsModel {
     var isRecordingHotkey: Bool = false
 
     @ObservationIgnored
+    private let configManager: any ConfigManaging
+
+    @ObservationIgnored
+    private let polisher: LLMPolisher
+
+    @ObservationIgnored
     private weak var hotkeyManager: HotkeyManager?
 
-    init(hotkeyManager: HotkeyManager? = nil) {
+    init(
+        configManager: any ConfigManaging = ConfigManager.shared,
+        polisher: LLMPolisher = .shared,
+        hotkeyManager: HotkeyManager? = nil
+    ) {
+        self.configManager = configManager
+        self.polisher = polisher
         self.hotkeyManager = hotkeyManager
         reload()
     }
@@ -28,14 +40,11 @@ final class SettingsModel {
     }
 
     func reload() {
-        let polisher = LLMPolisher.shared
-        let config = ConfigManager.shared
-
         baseURL = polisher.baseURL
         apiKey = polisher.apiKey ?? ""
         model = polisher.configuredModel
-        editBeforePaste = config.editBeforePaste
-        speechRuntime = SpeechRuntimeProbe.currentStatus()
+        editBeforePaste = configManager.editBeforePaste
+        speechRuntime = SpeechRuntimeProbe.currentStatus(configManager: configManager)
         hotkeyDisplay = hotkeyManager?.displayString ?? "⌥Space"
         statusMessage = ""
         isTesting = false
@@ -44,12 +53,12 @@ final class SettingsModel {
 
     @discardableResult
     func save() -> Bool {
-        let saved = ConfigManager.shared.saveLLMConfiguration(
+        let saved = configManager.saveLLMConfiguration(
             baseURL: baseURL,
             model: model,
             apiKey: apiKey
         )
-        ConfigManager.shared.saveEditBeforePaste(editBeforePaste)
+        configManager.saveEditBeforePaste(editBeforePaste)
         statusMessage = saved ? "✓ Saved" : "✗ Saved config, but failed to store API key in Keychain"
         return saved
     }
@@ -60,14 +69,14 @@ final class SettingsModel {
         statusMessage = "Testing…"
 
         Task {
-            let probe = await LLMPolisher.shared.runtimeProbe()
+            let probe = await polisher.runtimeProbe()
             statusMessage = probe.isReady ? "✓ \(probe.line)" : "✗ \(probe.line)"
             isTesting = false
         }
     }
 
     func refreshSpeechRuntime() {
-        speechRuntime = SpeechRuntimeProbe.currentStatus()
+        speechRuntime = SpeechRuntimeProbe.currentStatus(configManager: configManager)
     }
 
     func applyHotkey(modifiers: NSEvent.ModifierFlags, keyCode: UInt16) {

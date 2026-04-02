@@ -20,8 +20,8 @@ struct SpeechRuntimeStatus {
 
 @MainActor
 enum SpeechRuntimeProbe {
-    static func currentStatus() -> SpeechRuntimeStatus {
-        let providerIdentifier = ConfigManager.shared.asrProvider
+    static func currentStatus(configManager: any ConfigManaging = ConfigManager.shared) -> SpeechRuntimeStatus {
+        let providerIdentifier = configManager.asrProvider
         let helperPath = AppPaths.coliHelperPath
         let isHelperAvailable = ColiTranscriber.isAvailable(at: helperPath)
 

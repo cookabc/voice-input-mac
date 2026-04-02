@@ -18,12 +18,18 @@ final class MenuBarController: NSObject {
 
     private var statusItem: NSStatusItem?
     private let menu = NSMenu()
+    private let configManager: any ConfigManaging
     private var hasAccessibilityWarning = false
     private var runtimeState: RuntimeState = .idle
 
     var onLanguageChanged: ((String) -> Void)?
     var onLLMToggled: ((Bool) -> Void)?
     var onSettingsRequested: (() -> Void)?
+
+    init(configManager: any ConfigManaging = ConfigManager.shared) {
+        self.configManager = configManager
+        super.init()
+    }
 
     func setAccessibilityWarning(_ warning: Bool) {
         hasAccessibilityWarning = warning
@@ -128,9 +134,9 @@ final class MenuBarController: NSObject {
     }
 
     var editBeforePaste: Bool {
-        get { ConfigManager.shared.editBeforePaste }
+        get { configManager.editBeforePaste }
         set {
-            ConfigManager.shared.saveEditBeforePaste(newValue)
+            configManager.saveEditBeforePaste(newValue)
             rebuildMenu()
         }
     }

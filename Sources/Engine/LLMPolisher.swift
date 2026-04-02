@@ -29,7 +29,14 @@ enum LLMPolisherError: Error, LocalizedError {
 }
 
 actor LLMPolisher {
-    static let shared = LLMPolisher()
+    typealias PromptProvider = @Sendable @MainActor (_ text: String) -> (systemPrompt: String, userContent: String)
+
+    static let shared = LLMPolisher(
+        promptProvider: { text in
+            let promptManager = PromptManager.shared
+            return (promptManager.systemPrompt, promptManager.renderUserPrompt(text: text))
+        }
+    )
 
     struct RuntimeProbe {
         let line: String
@@ -41,6 +48,12 @@ actor LLMPolisher {
     private static let baseURLUD  = "llm_polish_base_url"
     private static let modelUD    = "llm_polish_model"
     private static let apiKeyAccount = KeychainService.llmAPIKeyAccount
+
+    private let promptProvider: PromptProvider
+
+    init(promptProvider: @escaping PromptProvider) {
+        self.promptProvider = promptProvider
+    }
 
     nonisolated var apiKey: String? {
         if let key = KeychainService.load(account: Self.apiKeyAccount) {
@@ -206,10 +219,8 @@ actor LLMPolisher {
         }
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let (baseSystemPrompt, userContent) = await MainActor.run {
-            let pm = PromptManager.shared
-            return (pm.systemPrompt, pm.renderUserPrompt(text: text))
-        }
+        let promptProvider = self.promptProvider
+        let (baseSystemPrompt, userContent) = await promptProvider(text)
 
         let systemPrompt: String
         if dictionary.isEmpty {

@@ -6,8 +6,18 @@ import SwiftUI
 final class SettingsWindowController {
 
     private var window: NSWindow?
-    private lazy var settingsModel = SettingsModel()
+    private let configManager: any ConfigManaging
+    private let polisher: LLMPolisher
+    private lazy var settingsModel = SettingsModel(configManager: configManager, polisher: polisher)
     weak var hotkeyManager: HotkeyManager?
+
+    init(
+        configManager: any ConfigManaging = ConfigManager.shared,
+        polisher: LLMPolisher = .shared
+    ) {
+        self.configManager = configManager
+        self.polisher = polisher
+    }
 
     func showSettings() {
         settingsModel.setHotkeyManager(hotkeyManager)
