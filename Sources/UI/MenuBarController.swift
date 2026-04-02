@@ -7,10 +7,31 @@ final class MenuBarController: NSObject {
 
     private var statusItem: NSStatusItem?
     private let menu = NSMenu()
+    private var hasAccessibilityWarning = false
 
     var onLanguageChanged: ((String) -> Void)?
     var onLLMToggled: ((Bool) -> Void)?
     var onSettingsRequested: (() -> Void)?
+
+    func setAccessibilityWarning(_ warning: Bool) {
+        hasAccessibilityWarning = warning
+        updateStatusIcon()
+    }
+
+    private func updateStatusIcon() {
+        guard let button = statusItem?.button else { return }
+        if hasAccessibilityWarning {
+            button.image = NSImage(
+                systemSymbolName: "mic.slash.fill",
+                accessibilityDescription: "Murmur - 需要权限"
+            )
+        } else {
+            button.image = NSImage(
+                systemSymbolName: "mic.fill",
+                accessibilityDescription: "Murmur"
+            )
+        }
+    }
 
     static let supportedLanguages: [(id: String, name: String)] = [
         ("zh-CN", "中文（简体）"),
@@ -47,12 +68,7 @@ final class MenuBarController: NSObject {
 
     func setup() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        if let button = statusItem?.button {
-            button.image = NSImage(
-                systemSymbolName: "mic.fill",
-                accessibilityDescription: "Murmur"
-            )
-        }
+        updateStatusIcon()
         rebuildMenu()
         statusItem?.menu = menu
     }
@@ -61,6 +77,18 @@ final class MenuBarController: NSObject {
 
     private func rebuildMenu() {
         menu.removeAllItems()
+
+        // ── Accessibility Warning ──
+        if hasAccessibilityWarning {
+            let warningItem = NSMenuItem(
+                title: "⚠️ 需要辅助功能权限",
+                action: #selector(openAccessibilitySettings(_:)),
+                keyEquivalent: ""
+            )
+            warningItem.target = self
+            menu.addItem(warningItem)
+            menu.addItem(.separator())
+        }
 
         // ── Hint ──
         let hintItem = NSMenuItem(title: "Fn hold to dictate · Esc to cancel", action: nil, keyEquivalent: "")
@@ -144,5 +172,11 @@ final class MenuBarController: NSObject {
 
     @objc private func quitApp(_ sender: NSMenuItem) {
         NSApp.terminate(nil)
+    }
+
+    @objc private func openAccessibilitySettings(_ sender: NSMenuItem) {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
     }
 }
