@@ -56,6 +56,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
+        if let launchIssue = LaunchConfigurationValidator.validate() {
+            MurmurLogger.app.error("\(launchIssue.logMessage, privacy: .public)")
+            showLaunchConfigurationAlert(for: launchIssue)
+            return
+        }
+
         // Prompt for Accessibility if needed (required for CGEvent tap + paste).
         TextInsertionService.promptAccessibility()
 
@@ -122,6 +128,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Update menu bar to show warning
             self?.menuBar.setAccessibilityWarning(true)
         }
+    }
+
+    private func showLaunchConfigurationAlert(for issue: LaunchConfigurationIssue) {
+        NSApp.activate(ignoringOtherApps: true)
+
+        let alert = NSAlert()
+        alert.messageText = issue.alertTitle
+        alert.informativeText = issue.alertMessage
+        alert.alertStyle = .critical
+        alert.addButton(withTitle: "退出")
+        alert.runModal()
+
+        NSApp.terminate(nil)
     }
 
     private func setupHotkey() {

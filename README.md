@@ -13,8 +13,8 @@ A privacy-first macOS menu bar dictation app. Click the icon, speak, and your wo
 
 ## Requirements
 
-- macOS 14.0+ (Sonoma)
-- Swift 5.10+ (Xcode 16+) — for building from source
+- macOS 26.0+
+- Swift 6.3+ (Xcode 17+) — for building from source
 - [`@marswave/coli`](https://www.npmjs.com/package/@marswave/coli) — SenseVoice transcription CLI, bundled at build time
 
 ```bash
@@ -28,6 +28,8 @@ npm install -g @marswave/coli
 ```
 
 Builds the Swift package, stages `Murmur.app` under `.stage/`, kills any running instance, and opens the new build.
+
+Do not launch `.build/.../Murmur` directly. macOS privacy prompts for microphone and speech recognition require the staged `.app` bundle and its `Info.plist` usage descriptions.
 
 Other modes:
 
