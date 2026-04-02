@@ -31,12 +31,12 @@ final class AudioSession {
     func startRecording() throws -> String {
         guard !isRecording else { throw AudioSessionError.alreadyRecording }
 
-        let ts = Int(Date().timeIntervalSince1970 * 1000)
-        let path = "/tmp/voice_\(ts).wav"
+        let recordingURL = makeRecordingURL()
+        let path = recordingURL.path
 
         let fmt = engine.inputNode.outputFormat(forBus: 0)
         audioFile = try AVAudioFile(
-            forWriting: URL(fileURLWithPath: path),
+            forWriting: recordingURL,
             settings: fmt.settings
         )
         recordingPath = path
@@ -62,6 +62,8 @@ final class AudioSession {
         } catch {
             engine.inputNode.removeTap(onBus: 0)
             audioFile = nil
+            try? FileManager.default.removeItem(at: recordingURL)
+            recordingPath = ""
             throw AudioSessionError.engineStartFailed(error.localizedDescription)
         }
 
@@ -76,5 +78,11 @@ final class AudioSession {
         engine.stop()
         audioFile = nil
         isRecording = false
+    }
+
+    private func makeRecordingURL() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("murmur-recording-\(UUID().uuidString)")
+            .appendingPathExtension("wav")
     }
 }
