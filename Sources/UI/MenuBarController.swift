@@ -136,16 +136,6 @@ final class MenuBarController: NSObject {
         enableItem.state = llmEnabled ? .on : .off
         llmMenu.addItem(enableItem)
 
-        llmMenu.addItem(.separator())
-
-        let settingsItem = NSMenuItem(
-            title: "Settings…",
-            action: #selector(openSettings(_:)),
-            keyEquivalent: ","
-        )
-        settingsItem.target = self
-        llmMenu.addItem(settingsItem)
-
         llmItem.submenu = llmMenu
         menu.addItem(llmItem)
 
@@ -157,6 +147,14 @@ final class MenuBarController: NSObject {
         reviewItem.target = self
         reviewItem.state = editBeforePaste ? .on : .off
         menu.addItem(reviewItem)
+
+        let settingsItem = NSMenuItem(
+            title: "Settings…",
+            action: #selector(openSettings(_:)),
+            keyEquivalent: ","
+        )
+        settingsItem.target = self
+        menu.addItem(settingsItem)
 
         menu.addItem(.separator())
 
