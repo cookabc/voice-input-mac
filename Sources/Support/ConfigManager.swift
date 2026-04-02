@@ -11,6 +11,7 @@ final class ConfigManager: ObservableObject {
         var asrProvider: String?
         var llmBaseURL: String?
         var llmModel: String?
+        // Legacy compatibility only. New API keys are stored in Keychain.
         var llmAPIKey: String?
         var hotkeyModifiers: UInt?
         var hotkeyKeyCode: UInt16?
@@ -35,6 +36,10 @@ final class ConfigManager: ObservableObject {
     @Published private(set) var config: Config = Config()
     @Published private(set) var configFilePath: String = ""
     @Published private(set) var isUsingFile: Bool = false
+
+    private static let apiKeyUD = "llm_polish_api_key"
+    private static let baseURLUD = "llm_polish_base_url"
+    private static let modelUD = "llm_polish_model"
 
     private var fileMonitorSource: DispatchSourceFileSystemObject?
     private var fileDescriptor: Int32 = -1
@@ -76,9 +81,44 @@ final class ConfigManager: ObservableObject {
     }
 
     func saveConfig(_ newConfig: Config) {
-        config = newConfig
-        syncToUserDefaults(newConfig)
-        writeConfigFile(newConfig)
+        var nextConfig = newConfig
+        nextConfig.llmAPIKey = migrateLegacyAPIKeyIfPossible(nextConfig.llmAPIKey, source: "Config save")
+        config = nextConfig
+        syncToUserDefaults(nextConfig)
+        writeConfigFile(nextConfig)
+    }
+
+    @discardableResult
+    func saveLLMConfiguration(baseURL: String, model: String, apiKey: String) -> Bool {
+        let normalizedBaseURL = normalizedBaseURL(from: baseURL)
+        let normalizedModel = normalizedModel(from: model)
+        let trimmedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let apiKeySaved: Bool
+        let legacyFallbackAPIKey: String?
+
+        if trimmedAPIKey.isEmpty {
+            apiKeySaved = KeychainService.delete(account: KeychainService.llmAPIKeyAccount)
+            legacyFallbackAPIKey = nil
+        } else if KeychainService.save(trimmedAPIKey, account: KeychainService.llmAPIKeyAccount) {
+            apiKeySaved = true
+            legacyFallbackAPIKey = nil
+            MurmurLogger.app.info("Stored LLM API key in Keychain")
+        } else {
+            apiKeySaved = false
+            legacyFallbackAPIKey = trimmedAPIKey
+            MurmurLogger.app.error("Failed to store LLM API key in Keychain; keeping a temporary UserDefaults fallback")
+        }
+
+        var nextConfig = config
+        nextConfig.llmBaseURL = normalizedBaseURL
+        nextConfig.llmModel = normalizedModel
+        nextConfig.llmAPIKey = legacyFallbackAPIKey
+
+        config = nextConfig
+        syncToUserDefaults(nextConfig)
+        writeConfigFile(nextConfig)
+        return apiKeySaved || trimmedAPIKey.isEmpty
     }
 
     /// First-launch migration: writes current UserDefaults values to the JSON file
@@ -153,9 +193,18 @@ final class ConfigManager: ObservableObject {
         do {
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
-            config = try decoder.decode(Config.self, from: data)
+            var decodedConfig = try decoder.decode(Config.self, from: data)
+            let hadLegacyAPIKey = decodedConfig.llmAPIKey?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            decodedConfig.llmAPIKey = migrateLegacyAPIKeyIfPossible(decodedConfig.llmAPIKey, source: path)
+
+            config = decodedConfig
             isUsingFile = true
-            syncToUserDefaults(config)
+            syncToUserDefaults(decodedConfig)
+
+            if hadLegacyAPIKey && decodedConfig.llmAPIKey == nil && path == configPath {
+                writeConfigFile(decodedConfig)
+            }
+
             return true
         } catch {
             MurmurLogger.app.error("Failed to decode config at \(path, privacy: .public): \(error.localizedDescription, privacy: .public)")
@@ -168,7 +217,7 @@ final class ConfigManager: ObservableObject {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        guard let data = try? encoder.encode(cfg) else { return }
+        guard let data = try? encoder.encode(sanitizedConfig(cfg)) else { return }
         FileManager.default.createFile(atPath: configPath, contents: data)
         isUsingFile = true
     }
@@ -176,15 +225,18 @@ final class ConfigManager: ObservableObject {
     private func configFromUserDefaults() -> Config {
         let ud = UserDefaults.standard
         var cfg = Config()
-        cfg.llmBaseURL = ud.string(forKey: "llm_polish_base_url")?.trimmingCharacters(in: .whitespaces)
+        cfg.llmBaseURL = ud.string(forKey: Self.baseURLUD)?.trimmingCharacters(in: .whitespaces)
         if let base = cfg.llmBaseURL, !base.isEmpty {
             var cleaned = base
             while cleaned.hasSuffix("/") { cleaned = String(cleaned.dropLast()) }
             if cleaned.hasSuffix("/v1") { cleaned = String(cleaned.dropLast(3)) }
             cfg.llmBaseURL = cleaned
         }
-        cfg.llmModel = ud.string(forKey: "llm_polish_model")
-        cfg.llmAPIKey = ud.string(forKey: "llm_polish_api_key")
+        cfg.llmModel = ud.string(forKey: Self.modelUD)
+        cfg.llmAPIKey = migrateLegacyAPIKeyIfPossible(
+            ud.string(forKey: Self.apiKeyUD),
+            source: "UserDefaults"
+        )
         return cfg
     }
 
@@ -193,7 +245,11 @@ final class ConfigManager: ObservableObject {
     var asrProvider: String { config.asrProvider ?? Config.defaultASRProvider }
     var llmBaseURL: String { config.llmBaseURL ?? Config.defaultLLMBaseURL }
     var llmModel: String { config.llmModel ?? Config.defaultLLMModel }
-    var llmAPIKey: String { config.llmAPIKey ?? Config.defaultLLMAPIKey }
+    var llmAPIKey: String {
+        KeychainService.load(account: KeychainService.llmAPIKeyAccount)
+            ?? config.llmAPIKey
+            ?? Config.defaultLLMAPIKey
+    }
     var hotkeyModifiers: UInt { config.hotkeyModifiers ?? Config.defaultHotkeyModifiers }
     var hotkeyKeyCode: UInt16 { config.hotkeyKeyCode ?? Config.defaultHotkeyKeyCode }
     var autoPolish: Bool { config.autoPolish ?? Config.defaultAutoPolish }
@@ -203,8 +259,51 @@ final class ConfigManager: ObservableObject {
 
     private func syncToUserDefaults(_ cfg: Config) {
         let ud = UserDefaults.standard
-        ud.set(cfg.llmBaseURL ?? Config.defaultLLMBaseURL, forKey: "llm_polish_base_url")
-        ud.set(cfg.llmModel ?? Config.defaultLLMModel, forKey: "llm_polish_model")
-        ud.set(cfg.llmAPIKey ?? Config.defaultLLMAPIKey, forKey: "llm_polish_api_key")
+        ud.set(cfg.llmBaseURL ?? Config.defaultLLMBaseURL, forKey: Self.baseURLUD)
+        ud.set(cfg.llmModel ?? Config.defaultLLMModel, forKey: Self.modelUD)
+
+        if let legacyAPIKey = cfg.llmAPIKey?.trimmingCharacters(in: .whitespacesAndNewlines), !legacyAPIKey.isEmpty {
+            ud.set(legacyAPIKey, forKey: Self.apiKeyUD)
+        } else {
+            ud.removeObject(forKey: Self.apiKeyUD)
+        }
+    }
+
+    private func sanitizedConfig(_ cfg: Config) -> Config {
+        var sanitized = cfg
+        sanitized.llmAPIKey = nil
+        return sanitized
+    }
+
+    private func normalizedBaseURL(from rawValue: String) -> String {
+        var normalized = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        while normalized.hasSuffix("/") { normalized = String(normalized.dropLast()) }
+        if normalized.hasSuffix("/v1") { normalized = String(normalized.dropLast(3)) }
+        return normalized.isEmpty ? Config.defaultLLMBaseURL : normalized
+    }
+
+    private func normalizedModel(from rawValue: String) -> String {
+        let normalized = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalized.isEmpty ? Config.defaultLLMModel : normalized
+    }
+
+    private func migrateLegacyAPIKeyIfPossible(_ rawValue: String?, source: String) -> String? {
+        guard let legacyValue = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines), !legacyValue.isEmpty else {
+            return nil
+        }
+
+        if KeychainService.load(account: KeychainService.llmAPIKeyAccount) != nil {
+            UserDefaults.standard.removeObject(forKey: Self.apiKeyUD)
+            return nil
+        }
+
+        guard KeychainService.save(legacyValue, account: KeychainService.llmAPIKeyAccount) else {
+            MurmurLogger.app.error("Failed to migrate LLM API key from \(source, privacy: .public) to Keychain")
+            return legacyValue
+        }
+
+        UserDefaults.standard.removeObject(forKey: Self.apiKeyUD)
+        MurmurLogger.app.info("Migrated LLM API key from \(source, privacy: .public) to Keychain")
+        return nil
     }
 }

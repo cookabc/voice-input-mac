@@ -40,9 +40,24 @@ actor LLMPolisher {
     private static let apiKeyUD   = "llm_polish_api_key"
     private static let baseURLUD  = "llm_polish_base_url"
     private static let modelUD    = "llm_polish_model"
+    private static let apiKeyAccount = KeychainService.llmAPIKeyAccount
 
     nonisolated var apiKey: String? {
-        UserDefaults.standard.string(forKey: Self.apiKeyUD).flatMap { $0.isEmpty ? nil : $0 }
+        if let key = KeychainService.load(account: Self.apiKeyAccount) {
+            return key
+        }
+
+        let defaults = UserDefaults.standard
+        guard let legacyValue = defaults.string(forKey: Self.apiKeyUD)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !legacyValue.isEmpty else {
+            return nil
+        }
+
+        if KeychainService.save(legacyValue, account: Self.apiKeyAccount) {
+            defaults.removeObject(forKey: Self.apiKeyUD)
+        }
+
+        return legacyValue
     }
 
     nonisolated var baseURL: String {
@@ -73,9 +88,24 @@ actor LLMPolisher {
         return m.isEmpty ? "gpt-4o-mini" : m
     }
 
-    nonisolated func saveApiKey(_ key: String) {
-        let v = key.trimmingCharacters(in: .whitespaces)
-        UserDefaults.standard.set(v, forKey: Self.apiKeyUD)
+    @discardableResult
+    nonisolated func saveApiKey(_ key: String) -> Bool {
+        let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        let defaults = UserDefaults.standard
+
+        if trimmedKey.isEmpty {
+            defaults.removeObject(forKey: Self.apiKeyUD)
+            return KeychainService.delete(account: Self.apiKeyAccount)
+        }
+
+        guard KeychainService.save(trimmedKey, account: Self.apiKeyAccount) else {
+            MurmurLogger.network.error("Failed to save API key to Keychain")
+            defaults.set(trimmedKey, forKey: Self.apiKeyUD)
+            return false
+        }
+
+        defaults.removeObject(forKey: Self.apiKeyUD)
+        return true
     }
 
     nonisolated func saveBaseURL(_ url: String) {

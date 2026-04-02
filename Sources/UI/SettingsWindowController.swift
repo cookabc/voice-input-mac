@@ -147,14 +147,17 @@ private struct SettingsContentView: View {
     }
 
     private func save() {
-        LLMPolisher.shared.saveBaseURL(baseURL)
-        LLMPolisher.shared.saveApiKey(apiKey)
-        LLMPolisher.shared.saveModel(model)
-        statusMessage = "✓ Saved"
+        let saved = ConfigManager.shared.saveLLMConfiguration(
+            baseURL: baseURL,
+            model: model,
+            apiKey: apiKey
+        )
+        statusMessage = saved ? "✓ Saved" : "✗ Saved config, but failed to store API key in Keychain"
     }
 
     private func testConnection() {
         save()
+        guard !statusMessage.hasPrefix("✗") else { return }
         isTesting = true
         statusMessage = "Testing…"
         Task {

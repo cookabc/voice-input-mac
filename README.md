@@ -9,6 +9,7 @@ A privacy-first macOS menu bar dictation app. Click the icon, speak, and your wo
 - **Offline transcription** — final pass via `coli asr` (SenseVoice) bundled inside the app
 - **Auto-paste** — transcribed text is pasted into the frontmost app via CGEvent (no AppleScript)
 - **LLM Polish** — optional grammar/punctuation cleanup via any OpenAI-compatible API
+- **Secure credential storage** — remote LLM API keys are stored in the macOS Keychain
 - **Privacy-first** — microphone audio never leaves your machine
 
 ## Requirements
