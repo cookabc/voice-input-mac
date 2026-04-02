@@ -8,16 +8,28 @@ final class ConfigManager: ObservableObject {
     static let shared = ConfigManager()
 
     struct Config: Codable, Equatable {
-        var asrProvider: String = "coli-sensevoice"
-        var llmBaseURL: String = "http://localhost:11434"
-        var llmModel: String = "qwen2.5:7b"
-        var llmAPIKey: String = ""
-        var hotkeyModifiers: UInt = 0x080000   // ⌥
-        var hotkeyKeyCode: UInt16 = 49          // Space
-        var autoPolish: Bool = true
-        var ttsEnabled: Bool = false
-        var advancedMode: Bool = false
-        var vadEnabled: Bool = false
+        var asrProvider: String?
+        var llmBaseURL: String?
+        var llmModel: String?
+        var llmAPIKey: String?
+        var hotkeyModifiers: UInt?
+        var hotkeyKeyCode: UInt16?
+        var autoPolish: Bool?
+        var ttsEnabled: Bool?
+        var advancedMode: Bool?
+        var vadEnabled: Bool?
+
+        // Default values
+        static let defaultASRProvider = "coli-sensevoice"
+        static let defaultLLMBaseURL = "http://localhost:11434"
+        static let defaultLLMModel = "qwen2.5:7b"
+        static let defaultLLMAPIKey = ""
+        static let defaultHotkeyModifiers: UInt = 0x080000   // ⌥
+        static let defaultHotkeyKeyCode: UInt16 = 49          // Space
+        static let defaultAutoPolish = true
+        static let defaultTTSEnabled = false
+        static let defaultAdvancedMode = false
+        static let defaultVADEnabled = false
     }
 
     @Published private(set) var config: Config = Config()
@@ -135,25 +147,35 @@ final class ConfigManager: ObservableObject {
     private func configFromUserDefaults() -> Config {
         let ud = UserDefaults.standard
         var cfg = Config()
-        if let url = ud.string(forKey: "llm_polish_base_url"), !url.isEmpty {
-            var base = url.trimmingCharacters(in: .whitespaces)
-            while base.hasSuffix("/") { base = String(base.dropLast()) }
-            if base.hasSuffix("/v1") { base = String(base.dropLast(3)) }
-            cfg.llmBaseURL = base
+        cfg.llmBaseURL = ud.string(forKey: "llm_polish_base_url")?.trimmingCharacters(in: .whitespaces)
+        if let base = cfg.llmBaseURL, !base.isEmpty {
+            var cleaned = base
+            while cleaned.hasSuffix("/") { cleaned = String(cleaned.dropLast()) }
+            if cleaned.hasSuffix("/v1") { cleaned = String(cleaned.dropLast(3)) }
+            cfg.llmBaseURL = cleaned
         }
-        if let model = ud.string(forKey: "llm_polish_model"), !model.isEmpty {
-            cfg.llmModel = model
-        }
-        if let key = ud.string(forKey: "llm_polish_api_key"), !key.isEmpty {
-            cfg.llmAPIKey = key
-        }
+        cfg.llmModel = ud.string(forKey: "llm_polish_model")
+        cfg.llmAPIKey = ud.string(forKey: "llm_polish_api_key")
         return cfg
     }
 
+    // MARK: - Property accessors with defaults
+
+    var asrProvider: String { config.asrProvider ?? Config.defaultASRProvider }
+    var llmBaseURL: String { config.llmBaseURL ?? Config.defaultLLMBaseURL }
+    var llmModel: String { config.llmModel ?? Config.defaultLLMModel }
+    var llmAPIKey: String { config.llmAPIKey ?? Config.defaultLLMAPIKey }
+    var hotkeyModifiers: UInt { config.hotkeyModifiers ?? Config.defaultHotkeyModifiers }
+    var hotkeyKeyCode: UInt16 { config.hotkeyKeyCode ?? Config.defaultHotkeyKeyCode }
+    var autoPolish: Bool { config.autoPolish ?? Config.defaultAutoPolish }
+    var ttsEnabled: Bool { config.ttsEnabled ?? Config.defaultTTSEnabled }
+    var advancedMode: Bool { config.advancedMode ?? Config.defaultAdvancedMode }
+    var vadEnabled: Bool { config.vadEnabled ?? Config.defaultVADEnabled }
+
     private func syncToUserDefaults(_ cfg: Config) {
         let ud = UserDefaults.standard
-        ud.set(cfg.llmBaseURL, forKey: "llm_polish_base_url")
-        ud.set(cfg.llmModel, forKey: "llm_polish_model")
-        ud.set(cfg.llmAPIKey, forKey: "llm_polish_api_key")
+        ud.set(cfg.llmBaseURL ?? Config.defaultLLMBaseURL, forKey: "llm_polish_base_url")
+        ud.set(cfg.llmModel ?? Config.defaultLLMModel, forKey: "llm_polish_model")
+        ud.set(cfg.llmAPIKey ?? Config.defaultLLMAPIKey, forKey: "llm_polish_api_key")
     }
 }
