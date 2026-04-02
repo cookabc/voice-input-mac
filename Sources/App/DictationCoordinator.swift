@@ -13,7 +13,7 @@ final class DictationCoordinator {
 
     private let capsulePanel: CapsulePanel
     private let audioSession: AudioSession
-    private let transcriber: ColiTranscriber
+    private let finalTranscriptionEngine: any FinalTranscriptionEngine
     private let transcriptEditPanel: TranscriptEditPanelController
     private let configManager: any ConfigManaging
     private let polisher: LLMPolisher
@@ -29,14 +29,14 @@ final class DictationCoordinator {
     init(
         capsulePanel: CapsulePanel,
         audioSession: AudioSession = AudioSession(),
-        transcriber: ColiTranscriber = ColiTranscriber(),
+        finalTranscriptionEngine: any FinalTranscriptionEngine = ColiTranscriber(),
         transcriptEditPanel: TranscriptEditPanelController = TranscriptEditPanelController(),
         configManager: any ConfigManaging = ConfigManager.shared,
         polisher: LLMPolisher = .shared
     ) {
         self.capsulePanel = capsulePanel
         self.audioSession = audioSession
-        self.transcriber = transcriber
+        self.finalTranscriptionEngine = finalTranscriptionEngine
         self.transcriptEditPanel = transcriptEditPanel
         self.configManager = configManager
         self.polisher = polisher
@@ -140,26 +140,30 @@ final class DictationCoordinator {
         capsulePanel.viewModel.audioLevel = 0
         runtimeStateSink(.transcribing)
 
+        let finalTranscriptionEngine = self.finalTranscriptionEngine
+
         processingTask = Task {
             var transcript = liveText
             let speechRuntime = SpeechRuntimeProbe.currentStatus(configManager: configManager)
-            let coliPath = speechRuntime.helperPath
             let selectedModel = SpeechModelIdentifier(providerIdentifier: speechRuntime.providerIdentifier)?.rawValue
                 ?? ColiTranscriber.defaultModel
+            let modelIdentifier = SpeechModelIdentifier(rawValue: selectedModel) ?? .sensevoice
 
             if speechRuntime.isHelperAvailable && speechRuntime.isModelAvailable {
                 do {
-                    let result = try await transcriber.transcribe(
-                        filePath: audioPath,
-                        coliPath: coliPath,
-                        model: selectedModel
+                    let result = try await finalTranscriptionEngine.transcribe(
+                        FinalTranscriptionRequest(
+                            filePath: audioPath,
+                            runtime: speechRuntime,
+                            selectedModel: modelIdentifier
+                        )
                     )
                     transcript = result.text
                 } catch {
                     MurmurLogger.speech.error("Coli failed, falling back to live text: \(error.localizedDescription, privacy: .public)")
                 }
             } else {
-                MurmurLogger.speech.error("Coli runtime unavailable at \(coliPath, privacy: .public); falling back to live preview text")
+                MurmurLogger.speech.error("Coli runtime unavailable at \(speechRuntime.helperPath, privacy: .public); falling back to live preview text")
             }
 
             guard !Task.isCancelled else {

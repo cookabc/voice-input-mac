@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-enum SpeechModelIdentifier: String, CaseIterable, Identifiable {
+enum SpeechModelIdentifier: String, CaseIterable, Identifiable, Sendable {
     case sensevoice
     case whisper
 

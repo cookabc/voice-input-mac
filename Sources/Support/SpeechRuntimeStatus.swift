@@ -1,6 +1,6 @@
 import Foundation
 
-struct SpeechRuntimeStatus {
+struct SpeechRuntimeStatus: Sendable {
     let providerIdentifier: String
     let providerDisplayName: String
     let modelName: String?

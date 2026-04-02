@@ -1,6 +1,6 @@
 import Foundation
 
-struct TranscriptionResult {
+struct TranscriptionResult: Sendable {
     let text: String
     let lang: String?
     let duration: Double?
@@ -91,5 +91,15 @@ actor ColiTranscriber {
 
     static func isAvailable(at path: String) -> Bool {
         FileManager.default.isExecutableFile(atPath: path)
+    }
+}
+
+extension ColiTranscriber: FinalTranscriptionEngine {
+    func transcribe(_ request: FinalTranscriptionRequest) async throws -> TranscriptionResult {
+        try await transcribe(
+            filePath: request.filePath,
+            coliPath: request.runtime.helperPath,
+            model: request.selectedModel.rawValue
+        )
     }
 }
