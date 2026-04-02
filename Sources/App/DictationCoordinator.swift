@@ -261,15 +261,17 @@ final class DictationCoordinator {
     private func injectText(_ text: String) async -> Result<Void, Error> {
         let savedIME = IMEService.switchToASCII()
         let savedClipboard = TextInsertionService.saveClipboard()
-
-        TextInsertionService.copyToClipboard(text)
+        let insertedClipboardChangeCount = TextInsertionService.copyToClipboard(text)
 
         do {
             try TextInsertionService.simulatePaste()
             try await Task.sleep(nanoseconds: 150_000_000)
 
             if let saved = savedClipboard {
-                TextInsertionService.restoreClipboard(saved)
+                _ = TextInsertionService.restoreClipboard(
+                    saved,
+                    ifChangeCountIs: insertedClipboardChangeCount
+                )
             }
             if let ime = savedIME {
                 IMEService.restore(ime)

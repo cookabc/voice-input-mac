@@ -13,10 +13,12 @@ enum TextInsertionService {
 
     // MARK: - Clipboard
 
-    static func copyToClipboard(_ text: String) {
+    @discardableResult
+    static func copyToClipboard(_ text: String) -> Int {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+        return pasteboard.changeCount
     }
 
     /// Saves a snapshot of the current general pasteboard contents.
@@ -37,8 +39,14 @@ enum TextInsertionService {
     }
 
     /// Restores a previously-saved clipboard snapshot.
-    static func restoreClipboard(_ snapshot: ClipboardSnapshot) {
+    @discardableResult
+    static func restoreClipboard(_ snapshot: ClipboardSnapshot, ifChangeCountIs expectedChangeCount: Int? = nil) -> Bool {
         let pb = NSPasteboard.general
+
+        if let expectedChangeCount, pb.changeCount != expectedChangeCount {
+            return false
+        }
+
         pb.clearContents()
         for entry in snapshot.items {
             let item = NSPasteboardItem()
@@ -47,6 +55,8 @@ enum TextInsertionService {
             }
             pb.writeObjects([item])
         }
+
+        return true
     }
 
     // MARK: - Accessibility
