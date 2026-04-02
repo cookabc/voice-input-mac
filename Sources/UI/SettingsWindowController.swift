@@ -6,9 +6,13 @@ import SwiftUI
 final class SettingsWindowController {
 
     private var window: NSWindow?
+    private lazy var settingsModel = SettingsModel()
     weak var hotkeyManager: HotkeyManager?
 
     func showSettings() {
+        settingsModel.setHotkeyManager(hotkeyManager)
+        settingsModel.reload()
+
         if let existing = window, existing.isVisible {
             existing.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -16,7 +20,7 @@ final class SettingsWindowController {
         }
 
         let hostingController = NSHostingController(
-            rootView: SettingsContentView(hotkeyManager: hotkeyManager)
+            rootView: SettingsContentView(model: settingsModel)
         )
 
         let win = NSWindow(contentViewController: hostingController)
@@ -35,30 +39,7 @@ final class SettingsWindowController {
 // MARK: - SwiftUI settings form
 
 private struct SettingsContentView: View {
-    @State private var baseURL: String
-    @State private var apiKey: String
-    @State private var model: String
-    @State private var editBeforePaste: Bool
-    @State private var speechRuntime: SpeechRuntimeStatus
-    @State private var statusMessage = ""
-    @State private var isTesting = false
-
-    // Hotkey
-    @State private var hotkeyDisplay: String
-    @State private var isRecordingHotkey = false
-    private weak var hotkeyManager: HotkeyManager?
-
-    init(hotkeyManager: HotkeyManager?) {
-        self.hotkeyManager = hotkeyManager
-        let polisher = LLMPolisher.shared
-        let config = ConfigManager.shared
-        _baseURL = State(initialValue: polisher.baseURL)
-        _apiKey = State(initialValue: polisher.apiKey ?? "")
-        _model = State(initialValue: polisher.configuredModel)
-        _editBeforePaste = State(initialValue: config.editBeforePaste)
-        _speechRuntime = State(initialValue: SpeechRuntimeProbe.currentStatus())
-        _hotkeyDisplay = State(initialValue: hotkeyManager?.displayString ?? "⌥Space")
-    }
+    @Bindable var model: SettingsModel
 
     var body: some View {
         ScrollView {
@@ -73,31 +54,29 @@ private struct SettingsContentView: View {
                             .frame(width: 88, alignment: .trailing)
                         ZStack {
                             RoundedRectangle(cornerRadius: 6)
-                                .fill(isRecordingHotkey
+                                .fill(model.isRecordingHotkey
                                       ? Color.accentColor.opacity(0.15)
                                       : Color(nsColor: .controlBackgroundColor))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 6)
-                                        .stroke(isRecordingHotkey ? Color.accentColor : Color.gray.opacity(0.3))
+                                        .stroke(model.isRecordingHotkey ? Color.accentColor : Color.gray.opacity(0.3))
                                 )
-                            Text(isRecordingHotkey ? "Press shortcut…" : hotkeyDisplay)
-                                .foregroundStyle(isRecordingHotkey ? .secondary : .primary)
+                            Text(model.isRecordingHotkey ? "Press shortcut…" : model.hotkeyDisplay)
+                                .foregroundStyle(model.isRecordingHotkey ? .secondary : .primary)
                         }
                         .frame(height: 28)
-                        .onTapGesture { isRecordingHotkey = true }
+                        .onTapGesture { model.isRecordingHotkey = true }
                         .background(
                             HotkeyRecorder(
-                                isRecording: $isRecordingHotkey,
+                                isRecording: $model.isRecordingHotkey,
                                 onCaptured: { mods, keyCode in
-                                    hotkeyManager?.updateShortcut(modifiers: mods, keyCode: keyCode)
-                                    hotkeyDisplay = hotkeyManager?.displayString ?? "⌥Space"
+                                    model.applyHotkey(modifiers: mods, keyCode: keyCode)
                                 }
                             )
                         )
 
                         Button("Reset") {
-                            hotkeyManager?.resetToDefault()
-                            hotkeyDisplay = hotkeyManager?.displayString ?? "⌥Space"
+                            model.resetHotkey()
                         }
                         .controlSize(.small)
                     }
@@ -109,41 +88,41 @@ private struct SettingsContentView: View {
                     Text("Speech Runtime")
                         .font(.headline)
 
-                    Text(speechRuntime.summaryLine)
+                    Text(model.speechRuntime.summaryLine)
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(speechRuntime.isHelperAvailable ? Color.green : Color.red)
+                        .foregroundStyle(model.speechRuntime.isHelperAvailable ? Color.green : Color.red)
 
-                    infoRow(label: "Provider", value: speechRuntime.providerIdentifier)
+                    infoRow(label: "Provider", value: model.speechRuntime.providerIdentifier)
 
-                    if let modelName = speechRuntime.modelName {
+                    if let modelName = model.speechRuntime.modelName {
                         infoRow(label: "Model", value: modelName)
                     }
 
                     infoRow(
                         label: "Helper",
-                        value: speechRuntime.helperStatusLine,
-                        valueColor: speechRuntime.isHelperAvailable ? .green : .red,
+                        value: model.speechRuntime.helperStatusLine,
+                        valueColor: model.speechRuntime.isHelperAvailable ? .green : .red,
                         monospaced: false
                     )
-                    infoRow(label: "Origin", value: speechRuntime.helperOriginLine, monospaced: false)
-                    infoRow(label: "Path", value: speechRuntime.helperPath)
-                    infoRow(label: "Support", value: speechRuntime.supportDirectoryPath)
-                    infoRow(label: "Config", value: speechRuntime.configFilePath)
+                    infoRow(label: "Origin", value: model.speechRuntime.helperOriginLine, monospaced: false)
+                    infoRow(label: "Path", value: model.speechRuntime.helperPath)
+                    infoRow(label: "Support", value: model.speechRuntime.supportDirectoryPath)
+                    infoRow(label: "Config", value: model.speechRuntime.configFilePath)
 
                     Text("This section mirrors the current final-transcription runtime. Runtime switching and model management will extend from here.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
                     HStack {
-                        Button("Refresh Runtime") { refreshSpeechRuntime() }
+                        Button("Refresh Runtime") { model.refreshSpeechRuntime() }
 
                         Button("Reveal Helper") {
-                            revealInFinder(path: speechRuntime.helperPath)
+                            model.revealInFinder(path: model.speechRuntime.helperPath)
                         }
-                        .disabled(!FileManager.default.fileExists(atPath: speechRuntime.helperPath))
+                        .disabled(!FileManager.default.fileExists(atPath: model.speechRuntime.helperPath))
 
                         Button("Reveal Support Files") {
-                            revealInFinder(path: speechRuntime.supportDirectoryPath)
+                            model.revealInFinder(path: model.speechRuntime.supportDirectoryPath)
                         }
                     }
                 }
@@ -155,9 +134,9 @@ private struct SettingsContentView: View {
                     Text("LLM API Configuration")
                         .font(.headline)
 
-                    fieldRow(label: "Base URL", text: $baseURL)
-                    fieldRow(label: "API Key", text: $apiKey, secure: true)
-                    fieldRow(label: "Model", text: $model)
+                    fieldRow(label: "Base URL", text: $model.baseURL)
+                    fieldRow(label: "API Key", text: $model.apiKey, secure: true)
+                    fieldRow(label: "Model", text: $model.model)
                 }
 
                 Divider()
@@ -166,24 +145,24 @@ private struct SettingsContentView: View {
                     Text("Workflow")
                         .font(.headline)
 
-                    Toggle("Show review window before inserting text", isOn: $editBeforePaste)
+                    Toggle("Show review window before inserting text", isOn: $model.editBeforePaste)
                 }
 
                 HStack {
-                    Button("Test Connection") { testConnection() }
-                        .disabled(isTesting)
+                    Button("Test Connection") { model.testConnection() }
+                        .disabled(model.isTesting)
 
                     Spacer()
 
-                    if !statusMessage.isEmpty {
-                        Text(statusMessage)
+                    if !model.statusMessage.isEmpty {
+                        Text(model.statusMessage)
                             .font(.caption)
-                            .foregroundColor(statusMessage.hasPrefix("✓") ? .green : .secondary)
+                            .foregroundColor(model.statusMessage.hasPrefix("✓") ? .green : .secondary)
                     }
 
                     Spacer()
 
-                    Button("Save") { save() }
+                    Button("Save") { model.save() }
                         .keyboardShortcut(.defaultAction)
                 }
             }
@@ -232,43 +211,6 @@ private struct SettingsContentView: View {
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-        }
-    }
-
-    private func save() {
-        let saved = ConfigManager.shared.saveLLMConfiguration(
-            baseURL: baseURL,
-            model: model,
-            apiKey: apiKey
-        )
-        ConfigManager.shared.saveEditBeforePaste(editBeforePaste)
-        statusMessage = saved ? "✓ Saved" : "✗ Saved config, but failed to store API key in Keychain"
-    }
-
-    private func refreshSpeechRuntime() {
-        speechRuntime = SpeechRuntimeProbe.currentStatus()
-    }
-
-    private func testConnection() {
-        save()
-        guard !statusMessage.hasPrefix("✗") else { return }
-        isTesting = true
-        statusMessage = "Testing…"
-        Task {
-            let probe = await LLMPolisher.shared.runtimeProbe()
-            statusMessage = probe.isReady ? "✓ \(probe.line)" : "✗ \(probe.line)"
-            isTesting = false
-        }
-    }
-
-    private func revealInFinder(path: String) {
-        let url = URL(fileURLWithPath: path)
-        let fileManager = FileManager.default
-
-        if fileManager.fileExists(atPath: path) {
-            NSWorkspace.shared.activateFileViewerSelecting([url])
-        } else {
-            NSWorkspace.shared.open(url.deletingLastPathComponent())
         }
     }
 }
