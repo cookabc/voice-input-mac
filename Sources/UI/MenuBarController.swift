@@ -64,6 +64,14 @@ final class MenuBarController: NSObject {
         }
     }
 
+    var editBeforePaste: Bool {
+        get { ConfigManager.shared.editBeforePaste }
+        set {
+            ConfigManager.shared.saveEditBeforePaste(newValue)
+            rebuildMenu()
+        }
+    }
+
     // MARK: - Setup
 
     func setup() {
@@ -141,6 +149,15 @@ final class MenuBarController: NSObject {
         llmItem.submenu = llmMenu
         menu.addItem(llmItem)
 
+        let reviewItem = NSMenuItem(
+            title: "Review Before Paste",
+            action: #selector(toggleEditBeforePaste(_:)),
+            keyEquivalent: ""
+        )
+        reviewItem.target = self
+        reviewItem.state = editBeforePaste ? .on : .off
+        menu.addItem(reviewItem)
+
         menu.addItem(.separator())
 
         // ── Quit ──
@@ -164,6 +181,10 @@ final class MenuBarController: NSObject {
     @objc private func toggleLLM(_ sender: NSMenuItem) {
         llmEnabled.toggle()
         onLLMToggled?(llmEnabled)
+    }
+
+    @objc private func toggleEditBeforePaste(_ sender: NSMenuItem) {
+        editBeforePaste.toggle()
     }
 
     @objc private func openSettings(_ sender: NSMenuItem) {
