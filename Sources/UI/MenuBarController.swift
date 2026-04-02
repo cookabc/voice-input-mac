@@ -1,9 +1,10 @@
 import AppKit
+import Observation
+import SwiftUI
 
-/// Manages the NSStatusItem + NSMenu in the menu bar.
-/// Provides submenus for language selection, LLM toggle, and settings.
 @MainActor
-final class MenuBarController: NSObject {
+@Observable
+final class MenuBarController {
 
     enum RuntimeState: Equatable {
         case idle
@@ -16,90 +17,106 @@ final class MenuBarController: NSObject {
         case error(String)
     }
 
-    private var statusItem: NSStatusItem?
-    private let menu = NSMenu()
+    @ObservationIgnored
     private let configManager: any ConfigManaging
-    private var hasAccessibilityWarning = false
-    private var runtimeState: RuntimeState = .idle
 
+    var hasAccessibilityWarning = false
+    var runtimeState: RuntimeState = .idle
+
+    @ObservationIgnored
     var onLanguageChanged: ((String) -> Void)?
+
+    @ObservationIgnored
     var onLLMToggled: ((Bool) -> Void)?
+
+    @ObservationIgnored
     var onSettingsRequested: (() -> Void)?
 
     init(configManager: any ConfigManaging = ConfigManager.shared) {
         self.configManager = configManager
-        super.init()
     }
 
     func setAccessibilityWarning(_ warning: Bool) {
         hasAccessibilityWarning = warning
-        updateStatusIcon()
-        rebuildMenu()
     }
 
     func setRuntimeState(_ state: RuntimeState) {
         runtimeState = state
-        updateStatusIcon()
-        rebuildMenu()
     }
 
-    private func updateStatusIcon() {
-        guard let button = statusItem?.button else { return }
-        let configuration = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
-
+    var labelSymbolName: String {
         if hasAccessibilityWarning {
-            button.image = NSImage(
-                systemSymbolName: "mic.slash.fill",
-                accessibilityDescription: "Murmur - 需要权限"
-            )?.withSymbolConfiguration(configuration)
-            button.contentTintColor = .systemOrange
-            return
+            return "mic.slash.fill"
         }
-
-        let symbolName: String
-        let accessibilityDescription: String
-        let tintColor: NSColor?
 
         switch runtimeState {
         case .idle:
-            symbolName = "mic.fill"
-            accessibilityDescription = "Murmur"
-            tintColor = nil
+            return "mic.fill"
         case .recording:
-            symbolName = "waveform.and.mic"
-            accessibilityDescription = "Murmur - Recording"
-            tintColor = .systemRed
+            return "waveform.and.mic"
         case .transcribing:
-            symbolName = "text.bubble.fill"
-            accessibilityDescription = "Murmur - Transcribing"
-            tintColor = .systemBlue
+            return "text.bubble.fill"
         case .refining:
-            symbolName = "sparkles"
-            accessibilityDescription = "Murmur - Refining"
-            tintColor = .systemPurple
+            return "sparkles"
         case .editing:
-            symbolName = "square.and.pencil"
-            accessibilityDescription = "Murmur - Reviewing Transcript"
-            tintColor = .systemTeal
+            return "square.and.pencil"
         case .cancelled:
-            symbolName = "xmark.circle.fill"
-            accessibilityDescription = "Murmur - Cancelled"
-            tintColor = .secondaryLabelColor
+            return "xmark.circle.fill"
         case .success:
-            symbolName = "checkmark.circle.fill"
-            accessibilityDescription = "Murmur - Success"
-            tintColor = .systemGreen
+            return "checkmark.circle.fill"
         case .error:
-            symbolName = "exclamationmark.triangle.fill"
-            accessibilityDescription = "Murmur - Error"
-            tintColor = .systemYellow
+            return "exclamationmark.triangle.fill"
+        }
+    }
+
+    var labelTintColor: Color {
+        if hasAccessibilityWarning {
+            return .orange
         }
 
-        button.image = NSImage(
-            systemSymbolName: symbolName,
-            accessibilityDescription: accessibilityDescription
-        )?.withSymbolConfiguration(configuration)
-        button.contentTintColor = tintColor
+        switch runtimeState {
+        case .idle:
+            return .primary
+        case .recording:
+            return .red
+        case .transcribing:
+            return .blue
+        case .refining:
+            return .purple
+        case .editing:
+            return .teal
+        case .cancelled:
+            return .secondary
+        case .success:
+            return .green
+        case .error:
+            return .yellow
+        }
+    }
+
+    var labelAccessibilityDescription: String {
+        if hasAccessibilityWarning {
+            return "Murmur - Accessibility permission required"
+        }
+
+        switch runtimeState {
+        case .idle:
+            return "Murmur"
+        case .recording:
+            return "Murmur - Recording"
+        case .transcribing:
+            return "Murmur - Transcribing"
+        case .refining:
+            return "Murmur - Refining"
+        case .editing:
+            return "Murmur - Reviewing Transcript"
+        case .cancelled:
+            return "Murmur - Cancelled"
+        case .success:
+            return "Murmur - Success"
+        case .error:
+            return "Murmur - Error"
+        }
     }
 
     static let supportedLanguages: [(id: String, name: String)] = [
@@ -116,7 +133,6 @@ final class MenuBarController: NSObject {
         get { UserDefaults.standard.string(forKey: "asr_locale") ?? "zh-CN" }
         set {
             UserDefaults.standard.set(newValue, forKey: "asr_locale")
-            rebuildMenu()
         }
     }
 
@@ -129,7 +145,6 @@ final class MenuBarController: NSObject {
         }
         set {
             UserDefaults.standard.set(newValue, forKey: "llm_refine_enabled")
-            rebuildMenu()
         }
     }
 
@@ -137,136 +152,28 @@ final class MenuBarController: NSObject {
         get { configManager.editBeforePaste }
         set {
             configManager.saveEditBeforePaste(newValue)
-            rebuildMenu()
         }
     }
 
-    // MARK: - Setup
-
-    func setup() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        updateStatusIcon()
-        rebuildMenu()
-        statusItem?.menu = menu
+    func updateSelectedLocale(_ locale: String) {
+        selectedLocale = locale
+        onLanguageChanged?(locale)
     }
 
-    // MARK: - Menu construction
-
-    private func rebuildMenu() {
-        menu.removeAllItems()
-
-        // ── Accessibility Warning ──
-        if hasAccessibilityWarning {
-            let warningItem = NSMenuItem(
-                title: "⚠️ 需要辅助功能权限",
-                action: #selector(openAccessibilitySettings(_:)),
-                keyEquivalent: ""
-            )
-            warningItem.target = self
-            menu.addItem(warningItem)
-            menu.addItem(.separator())
-        }
-
-        // ── Hint ──
-        let hintItem = NSMenuItem(title: "Fn hold to dictate · Esc to cancel", action: nil, keyEquivalent: "")
-        hintItem.isEnabled = false
-        menu.addItem(hintItem)
-
-        let runtimeItem = NSMenuItem(title: runtimeStatusLine, action: nil, keyEquivalent: "")
-        runtimeItem.isEnabled = false
-        menu.addItem(runtimeItem)
-        menu.addItem(.separator())
-
-        // ── Language ──
-        let langItem = NSMenuItem(title: "Language", action: nil, keyEquivalent: "")
-        let langMenu = NSMenu()
-        for lang in Self.supportedLanguages {
-            let item = NSMenuItem(
-                title: lang.name,
-                action: #selector(languageSelected(_:)),
-                keyEquivalent: ""
-            )
-            item.target = self
-            item.representedObject = lang.id
-            item.state = lang.id == selectedLocale ? .on : .off
-            langMenu.addItem(item)
-        }
-        langItem.submenu = langMenu
-        menu.addItem(langItem)
-
-        menu.addItem(.separator())
-
-        // ── LLM Refinement ──
-        let llmItem = NSMenuItem(title: "LLM Refinement", action: nil, keyEquivalent: "")
-        let llmMenu = NSMenu()
-
-        let enableItem = NSMenuItem(
-            title: "Enabled",
-            action: #selector(toggleLLM(_:)),
-            keyEquivalent: ""
-        )
-        enableItem.target = self
-        enableItem.state = llmEnabled ? .on : .off
-        llmMenu.addItem(enableItem)
-
-        llmItem.submenu = llmMenu
-        menu.addItem(llmItem)
-
-        let reviewItem = NSMenuItem(
-            title: "Review Before Paste",
-            action: #selector(toggleEditBeforePaste(_:)),
-            keyEquivalent: ""
-        )
-        reviewItem.target = self
-        reviewItem.state = editBeforePaste ? .on : .off
-        menu.addItem(reviewItem)
-
-        let settingsItem = NSMenuItem(
-            title: "Settings…",
-            action: #selector(openSettings(_:)),
-            keyEquivalent: ","
-        )
-        settingsItem.target = self
-        menu.addItem(settingsItem)
-
-        menu.addItem(.separator())
-
-        // ── Quit ──
-        let quitItem = NSMenuItem(
-            title: "Quit Murmur",
-            action: #selector(quitApp(_:)),
-            keyEquivalent: "q"
-        )
-        quitItem.target = self
-        menu.addItem(quitItem)
+    func updateLLMEnabled(_ enabled: Bool) {
+        llmEnabled = enabled
+        onLLMToggled?(enabled)
     }
 
-    // MARK: - Actions
-
-    @objc private func languageSelected(_ sender: NSMenuItem) {
-        guard let langId = sender.representedObject as? String else { return }
-        selectedLocale = langId
-        onLanguageChanged?(langId)
-    }
-
-    @objc private func toggleLLM(_ sender: NSMenuItem) {
-        llmEnabled.toggle()
-        onLLMToggled?(llmEnabled)
-    }
-
-    @objc private func toggleEditBeforePaste(_ sender: NSMenuItem) {
-        editBeforePaste.toggle()
-    }
-
-    @objc private func openSettings(_ sender: NSMenuItem) {
+    func openSettings() {
         onSettingsRequested?()
     }
 
-    @objc private func quitApp(_ sender: NSMenuItem) {
+    func quitApp() {
         NSApp.terminate(nil)
     }
 
-    @objc private func openAccessibilitySettings(_ sender: NSMenuItem) {
+    func openAccessibilitySettings() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
         }
@@ -291,5 +198,86 @@ final class MenuBarController: NSObject {
         case .error(let message):
             return "Status: \(message)"
         }
+    }
+
+    var runtimeStatusText: String {
+        runtimeStatusLine
+    }
+}
+
+struct MurmurMenuBarExtraContent: View {
+    @Bindable var menuBar: MenuBarController
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if menuBar.hasAccessibilityWarning {
+                Button {
+                    menuBar.openAccessibilitySettings()
+                } label: {
+                    Label("Accessibility permission required", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .padding(.bottom, 10)
+            }
+
+            Text("Fn hold to dictate · Esc to cancel")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Text(menuBar.runtimeStatusText)
+                .font(.subheadline.weight(.medium))
+                .padding(.top, 2)
+
+            Divider()
+                .padding(.vertical, 10)
+
+            Picker("Language", selection: Binding(
+                get: { menuBar.selectedLocale },
+                set: { menuBar.updateSelectedLocale($0) }
+            )) {
+                ForEach(MenuBarController.supportedLanguages, id: \.id) { language in
+                    Text(language.name).tag(language.id)
+                }
+            }
+
+            Toggle("LLM Refinement", isOn: Binding(
+                get: { menuBar.llmEnabled },
+                set: { menuBar.updateLLMEnabled($0) }
+            ))
+
+            Toggle("Review Before Paste", isOn: Binding(
+                get: { menuBar.editBeforePaste },
+                set: { menuBar.editBeforePaste = $0 }
+            ))
+
+            Divider()
+                .padding(.vertical, 10)
+
+            Button("Settings…") {
+                menuBar.openSettings()
+            }
+            .keyboardShortcut(",")
+
+            Button("Quit Murmur") {
+                menuBar.quitApp()
+            }
+            .keyboardShortcut("q")
+        }
+        .toggleStyle(.switch)
+        .frame(width: 280)
+        .padding(14)
+    }
+}
+
+struct MurmurMenuBarExtraLabel: View {
+    @Bindable var menuBar: MenuBarController
+
+    var body: some View {
+        Image(systemName: menuBar.labelSymbolName)
+            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(menuBar.labelTintColor)
+            .accessibilityLabel(menuBar.labelAccessibilityDescription)
     }
 }

@@ -1,15 +1,20 @@
 import AppKit
 import Speech
+import SwiftUI
 
 // MARK: - Entry point
 
 @main
-struct MurmurApp {
-    static func main() {
-        let app = NSApplication.shared
-        let delegate = AppDelegate()
-        app.delegate = delegate
-        app.run()
+struct MurmurApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
+    var body: some Scene {
+        MenuBarExtra {
+            MurmurMenuBarExtraContent(menuBar: appDelegate.menuBar)
+        } label: {
+            MurmurMenuBarExtraLabel(menuBar: appDelegate.menuBar)
+        }
+        .menuBarExtraStyle(.window)
     }
 }
 
@@ -23,7 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let polisher: LLMPolisher
 
     // ── Components ────────────────────────────────────────────────────────────
-    private let menuBar: MenuBarController
+    let menuBar: MenuBarController
     private let settingsController: SettingsWindowController
     private let fnMonitor: FnKeyMonitor
     private let hotkeyManager: HotkeyManager
@@ -107,7 +112,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Setup helpers
 
     private func setupMenuBar() {
-        menuBar.setup()
         dictationCoordinator.selectedLocaleProvider = { [weak self] in
             self?.menuBar.selectedLocale ?? "zh-CN"
         }
