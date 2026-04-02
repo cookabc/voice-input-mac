@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - ViewModel
 
 enum CapsuleState {
-    case recording, transcribing, refining, cancelled, error
+    case recording, transcribing, refining, cancelled, success, error
 }
 
 @MainActor
@@ -61,6 +61,7 @@ struct CapsuleView: View {
             return viewModel.text.isEmpty ? "Transcribing…" : viewModel.text
         case .refining:      return "Refining…"
         case .cancelled:     return "Cancelled"
+        case .success:       return viewModel.text.isEmpty ? "Done" : viewModel.text
         case .error:         return viewModel.text.isEmpty ? "Something went wrong" : viewModel.text
         }
     }
@@ -69,6 +70,8 @@ struct CapsuleView: View {
         switch viewModel.state {
         case .cancelled:
             return "xmark.circle.fill"
+        case .success:
+            return "checkmark.circle.fill"
         case .error:
             return "exclamationmark.triangle.fill"
         case .recording, .transcribing, .refining:
@@ -78,6 +81,8 @@ struct CapsuleView: View {
 
     private var statusForegroundColor: Color {
         switch viewModel.state {
+        case .success:
+            return Color(red: 0.54, green: 0.95, blue: 0.67)
         case .error:
             return Color(red: 1.0, green: 0.82, blue: 0.28)
         case .cancelled, .recording, .transcribing, .refining:

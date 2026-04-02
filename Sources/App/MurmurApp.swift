@@ -25,12 +25,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let hotkeyManager = HotkeyManager()
     private let audioSession = AudioSession()
     private let transcriber = ColiTranscriber()
+    private let transcriptEditPanel = TranscriptEditPanelController()
 
     private var liveSpeech: LiveSpeechRecognizer?
     private lazy var capsulePanel = CapsulePanel()
 
     // ── State machine ─────────────────────────────────────────────────────────
-    private enum State { case idle, recording, transcribing, refining, inserting }
+    private enum State { case idle, recording, transcribing, refining, editing, inserting }
     private var state: State = .idle
     private var processingTask: Task<Void, Never>?
     private var escLocalMonitor: Any?
@@ -293,6 +294,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
 
+            let transcriptAction = await resolveTranscriptAction(transcript)
+
+            guard !Task.isCancelled else {
+                finish(audioPath: audioPath)
+                return
+            }
+
+            switch transcriptAction {
+            case .cancel:
+                showTransientCapsuleState(.cancelled, text: "Cancelled", audioPath: audioPath, hideAfter: 0.5)
+                return
+            case .copy(let editedText):
+                TextInsertionService.copyToClipboard(editedText)
+                showTransientCapsuleState(.success, text: "Copied to clipboard", audioPath: audioPath, hideAfter: 0.8)
+                return
+            case .insert(let editedText):
+                transcript = editedText
+            }
+
             // ── Text injection ────────────────────────────────────────────────
             state = .inserting
             switch await injectText(transcript) {
@@ -303,6 +323,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 showTransientCapsuleState(.error, text: error.localizedDescription, audioPath: audioPath, hideAfter: 1.4)
             }
         }
+    }
+
+    private func resolveTranscriptAction(_ transcript: String) async -> TranscriptEditAction {
+        guard ConfigManager.shared.editBeforePaste else {
+            return .insert(transcript)
+        }
+
+        state = .editing
+        capsulePanel.hideCapsule()
+        return await transcriptEditPanel.edit(text: transcript)
     }
 
     private func cancelDictation() {

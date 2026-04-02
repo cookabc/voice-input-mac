@@ -16,6 +16,7 @@ final class ConfigManager: ObservableObject {
         var hotkeyModifiers: UInt?
         var hotkeyKeyCode: UInt16?
         var autoPolish: Bool?
+        var editBeforePaste: Bool?
         var ttsEnabled: Bool?
         var advancedMode: Bool?
         var vadEnabled: Bool?
@@ -28,6 +29,7 @@ final class ConfigManager: ObservableObject {
         static let defaultHotkeyModifiers: UInt = 0x080000   // ⌥
         static let defaultHotkeyKeyCode: UInt16 = 49          // Space
         static let defaultAutoPolish = true
+        static let defaultEditBeforePaste = false
         static let defaultTTSEnabled = false
         static let defaultAdvancedMode = false
         static let defaultVADEnabled = false
@@ -40,6 +42,7 @@ final class ConfigManager: ObservableObject {
     private static let apiKeyUD = "llm_polish_api_key"
     private static let baseURLUD = "llm_polish_base_url"
     private static let modelUD = "llm_polish_model"
+    private static let editBeforePasteUD = "edit_before_paste"
 
     private var fileMonitorSource: DispatchSourceFileSystemObject?
     private var fileDescriptor: Int32 = -1
@@ -119,6 +122,14 @@ final class ConfigManager: ObservableObject {
         syncToUserDefaults(nextConfig)
         writeConfigFile(nextConfig)
         return apiKeySaved || trimmedAPIKey.isEmpty
+    }
+
+    func saveEditBeforePaste(_ enabled: Bool) {
+        var nextConfig = config
+        nextConfig.editBeforePaste = enabled
+        config = nextConfig
+        syncToUserDefaults(nextConfig)
+        writeConfigFile(nextConfig)
     }
 
     /// First-launch migration: writes current UserDefaults values to the JSON file
@@ -237,6 +248,9 @@ final class ConfigManager: ObservableObject {
             ud.string(forKey: Self.apiKeyUD),
             source: "UserDefaults"
         )
+        if ud.object(forKey: Self.editBeforePasteUD) != nil {
+            cfg.editBeforePaste = ud.bool(forKey: Self.editBeforePasteUD)
+        }
         return cfg
     }
 
@@ -253,6 +267,7 @@ final class ConfigManager: ObservableObject {
     var hotkeyModifiers: UInt { config.hotkeyModifiers ?? Config.defaultHotkeyModifiers }
     var hotkeyKeyCode: UInt16 { config.hotkeyKeyCode ?? Config.defaultHotkeyKeyCode }
     var autoPolish: Bool { config.autoPolish ?? Config.defaultAutoPolish }
+    var editBeforePaste: Bool { config.editBeforePaste ?? Config.defaultEditBeforePaste }
     var ttsEnabled: Bool { config.ttsEnabled ?? Config.defaultTTSEnabled }
     var advancedMode: Bool { config.advancedMode ?? Config.defaultAdvancedMode }
     var vadEnabled: Bool { config.vadEnabled ?? Config.defaultVADEnabled }
@@ -267,6 +282,8 @@ final class ConfigManager: ObservableObject {
         } else {
             ud.removeObject(forKey: Self.apiKeyUD)
         }
+
+        ud.set(cfg.editBeforePaste ?? Config.defaultEditBeforePaste, forKey: Self.editBeforePasteUD)
     }
 
     private func sanitizedConfig(_ cfg: Config) -> Config {

@@ -38,6 +38,7 @@ private struct SettingsContentView: View {
     @State private var baseURL: String
     @State private var apiKey: String
     @State private var model: String
+    @State private var editBeforePaste: Bool
     @State private var statusMessage = ""
     @State private var isTesting = false
 
@@ -49,9 +50,11 @@ private struct SettingsContentView: View {
     init(hotkeyManager: HotkeyManager?) {
         self.hotkeyManager = hotkeyManager
         let polisher = LLMPolisher.shared
+        let config = ConfigManager.shared
         _baseURL = State(initialValue: polisher.baseURL)
         _apiKey = State(initialValue: polisher.apiKey ?? "")
         _model = State(initialValue: polisher.configuredModel)
+        _editBeforePaste = State(initialValue: config.editBeforePaste)
         _hotkeyDisplay = State(initialValue: hotkeyManager?.displayString ?? "⌥Space")
     }
 
@@ -109,6 +112,15 @@ private struct SettingsContentView: View {
                 fieldRow(label: "Model", text: $model)
             }
 
+            Divider()
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Workflow")
+                    .font(.headline)
+
+                Toggle("Show review window before inserting text", isOn: $editBeforePaste)
+            }
+
             HStack {
                 Button("Test Connection") { testConnection() }
                     .disabled(isTesting)
@@ -152,6 +164,7 @@ private struct SettingsContentView: View {
             model: model,
             apiKey: apiKey
         )
+        ConfigManager.shared.saveEditBeforePaste(editBeforePaste)
         statusMessage = saved ? "✓ Saved" : "✗ Saved config, but failed to store API key in Keychain"
     }
 
