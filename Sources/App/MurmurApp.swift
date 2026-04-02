@@ -32,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settingsController: SettingsWindowController
     private let fnMonitor: FnKeyMonitor
     private let hotkeyManager: HotkeyManager
+    private let noticePanel = NoticePanelController()
 
     private lazy var capsulePanel = CapsulePanel()
     private lazy var dictationCoordinator = DictationCoordinator(
@@ -139,27 +140,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if !fnMonitor.start() {
             MurmurLogger.app.error("CGEvent tap failed; accessibility permission is required")
-            showAccessibilityAlert()
+            showAccessibilityNotice()
         }
     }
 
-    private func showAccessibilityAlert() {
+    private func showAccessibilityNotice() {
+        menuBar.setAccessibilityWarning(true)
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            let alert = NSAlert()
-            alert.messageText = "需要辅助功能权限"
-            alert.informativeText = "Murmur 需要辅助功能权限来监听 Fn 键。\n\n请前往：系统设置 → 隐私与安全性 → 辅助功能\n然后添加并启用 Murmur。"
-            alert.alertStyle = .warning
-            alert.addButton(withTitle: "打开设置")
-            alert.addButton(withTitle: "稍后")
-
-            if alert.runModal() == .alertFirstButtonReturn {
-                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-                    NSWorkspace.shared.open(url)
-                }
-            }
-
-            // Update menu bar to show warning
-            self?.menuBar.setAccessibilityWarning(true)
+            self?.noticePanel.show(
+                title: "Accessibility Required",
+                message: "Murmur needs Accessibility access to monitor Fn and paste text into the active app. You can grant access now or return later from the menu bar warning state.",
+                style: .warning,
+                primaryAction: NoticePanelAction(title: "Open Settings", role: nil) {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                        NSWorkspace.shared.open(url)
+                    }
+                },
+                secondaryAction: NoticePanelAction(title: "Later", role: .cancel) {}
+            )
         }
     }
 
@@ -202,14 +201,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let key = "hasShownOnboarding"
         guard !UserDefaults.standard.bool(forKey: key) else { return }
         UserDefaults.standard.set(true, forKey: key)
+        guard !menuBar.hasAccessibilityWarning else { return }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            let alert = NSAlert()
-            alert.messageText = "Welcome to Murmur"
-            alert.informativeText = "Hold Fn or press ⌥Space to start dictating.\nRelease to transcribe and paste.\nPress Esc anytime to cancel."
-            alert.alertStyle = .informational
-            alert.addButton(withTitle: "Got it")
-            alert.runModal()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.noticePanel.show(
+                title: "Welcome to Murmur",
+                message: "Hold Fn or press Option-Space to start dictating. Release to transcribe and paste, or press Esc anytime to cancel.",
+                style: .info,
+                primaryAction: NoticePanelAction(title: "Got it", role: nil) {},
+                secondaryAction: NoticePanelAction(title: "Open Settings", role: nil) { [weak self] in
+                    self?.settingsController.showSettings()
+                }
+            )
         }
     }
 }
