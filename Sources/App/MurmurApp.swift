@@ -250,8 +250,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         processingTask = Task {
             // ── Final transcription (prefer coli for accuracy) ────────────────
             var transcript = liveText
-            let coliPath = AppPaths.coliHelperPath
-            if ColiTranscriber.isAvailable(at: coliPath) {
+            let speechRuntime = SpeechRuntimeProbe.currentStatus()
+            let coliPath = speechRuntime.helperPath
+            if speechRuntime.isHelperAvailable {
                 do {
                     let result = try await transcriber.transcribe(
                         filePath: audioPath, coliPath: coliPath
@@ -260,6 +261,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 } catch {
                     MurmurLogger.speech.error("Coli failed, falling back to live text: \(error.localizedDescription, privacy: .public)")
                 }
+            } else {
+                MurmurLogger.speech.error("Coli helper unavailable at \(coliPath, privacy: .public); falling back to live preview text")
             }
 
             guard !Task.isCancelled else {
@@ -268,8 +271,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
 
             // Nothing to paste?
-            guard !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                showTransientCapsuleState(.error, text: "No speech detected", audioPath: audioPath)
+            transcript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !transcript.isEmpty else {
+                let errorText = speechRuntime.isHelperAvailable
+                    ? "No speech detected"
+                    : "Speech runtime unavailable. Check Settings > Speech Runtime."
+                showTransientCapsuleState(.error, text: errorText, audioPath: audioPath)
                 return
             }
 
