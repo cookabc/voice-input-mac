@@ -71,6 +71,13 @@ enum AppPaths {
         }
 
         if let resourcePath = Bundle.main.resourcePath {
+            let resourceBinaryPath = URL(fileURLWithPath: resourcePath)
+                .appendingPathComponent(name)
+                .path
+            if FileManager.default.fileExists(atPath: resourceBinaryPath) {
+                return resourceBinaryPath
+            }
+
             let helperPath = URL(fileURLWithPath: resourcePath)
                 .deletingLastPathComponent()
                 .appendingPathComponent("Helpers")

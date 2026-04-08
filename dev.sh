@@ -32,6 +32,8 @@ CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 HELPERS_DIR="$CONTENTS_DIR/Helpers"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
+APP_BUNDLE_ID="com.advance.murmur.dev"
+APP_CODESIGN_REQUIREMENT="=designated => identifier \"$APP_BUNDLE_ID\""
 
 COLI_PATH="${VOICE_INPUT_COLI_PATH:-$(command -v coli || true)}"
 
@@ -65,19 +67,19 @@ COLI_PKG_DIR="$(dirname "$(dirname "$COLI_REAL")")"
 NODE_BIN="$(dirname "$COLI_PATH")/node"
 [[ ! -f "$NODE_BIN" ]] && NODE_BIN="$(command -v node)"
 
-cp -R "$COLI_PKG_DIR" "$HELPERS_DIR/coli_pkg"
+cp -R "$COLI_PKG_DIR" "$RESOURCES_DIR/coli_pkg"
 cp "$NODE_BIN" "$HELPERS_DIR/node"
 
 # Wrapper script so coli resolves its own node_modules correctly.
-cat > "$HELPERS_DIR/coli" <<'COLI_SH'
+cat > "$RESOURCES_DIR/coli" <<'COLI_SH'
 #!/bin/sh
 DIR="$(cd "$(dirname "$0")" && pwd)"
-exec "$DIR/node" "$DIR/coli_pkg/distribution/cli.js" "$@"
+exec "$DIR/../Helpers/node" "$DIR/coli_pkg/distribution/cli.js" "$@"
 COLI_SH
 
-chmod +x "$MACOS_DIR/Murmur" "$HELPERS_DIR/coli" "$HELPERS_DIR/node"
+chmod +x "$MACOS_DIR/Murmur" "$RESOURCES_DIR/coli" "$HELPERS_DIR/node"
 
-cat >"$CONTENTS_DIR/Info.plist" <<'PLIST'
+cat >"$CONTENTS_DIR/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -87,7 +89,7 @@ cat >"$CONTENTS_DIR/Info.plist" <<'PLIST'
   <key>CFBundleExecutable</key>
   <string>Murmur</string>
   <key>CFBundleIdentifier</key>
-  <string>com.advance.murmur.dev</string>
+  <string>$APP_BUNDLE_ID</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
@@ -111,6 +113,16 @@ cat >"$CONTENTS_DIR/Info.plist" <<'PLIST'
 </dict>
 </plist>
 PLIST
+
+codesign --force --sign - \
+  --identifier "$APP_BUNDLE_ID" \
+  --requirements "$APP_CODESIGN_REQUIREMENT" \
+  "$MACOS_DIR/Murmur" >/dev/null
+codesign --force --sign - "$HELPERS_DIR/node" >/dev/null
+codesign --force --sign - \
+  --identifier "$APP_BUNDLE_ID" \
+  --requirements "$APP_CODESIGN_REQUIREMENT" \
+  "$APP_DIR" >/dev/null
 
 echo "Staged: $APP_DIR"
 
