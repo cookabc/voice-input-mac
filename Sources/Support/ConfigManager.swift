@@ -178,12 +178,10 @@ final class ConfigManager: ObservableObject {
         let source = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: fileDescriptor,
             eventMask: [.write, .rename, .delete],
-            queue: .global(qos: .utility)
+            queue: .main
         )
         source.setEventHandler { [weak self] in
-            Task { @MainActor [weak self] in
-                self?.scheduleReload()
-            }
+            self?.scheduleReload()
         }
         source.setCancelHandler { [fd = fileDescriptor] in
             close(fd)

@@ -6,22 +6,14 @@ import SwiftUI
 @Observable
 final class MenuBarController {
 
-    enum RuntimeState: Equatable {
-        case idle
-        case recording
-        case transcribing
-        case refining
-        case editing
-        case cancelled(String)
-        case success(String)
-        case error(String)
-    }
-
     @ObservationIgnored
     private let configManager: any ConfigManaging
 
+    @ObservationIgnored
+    private var suppressEditBeforePastePersistence = false
+
     var hasAccessibilityWarning = false
-    var runtimeState: RuntimeState = .idle
+    var phase: DictationPhase = .idle
 
     @ObservationIgnored
     var onLanguageChanged: ((String) -> Void)?
@@ -32,91 +24,41 @@ final class MenuBarController {
     @ObservationIgnored
     var onSettingsRequested: (() -> Void)?
 
+    @ObservationIgnored
+    var onMenuOpened: (() -> Void)?
+
     init(configManager: any ConfigManaging = ConfigManager.shared) {
         self.configManager = configManager
+        self.editBeforePaste = configManager.editBeforePaste
     }
 
     func setAccessibilityWarning(_ warning: Bool) {
         hasAccessibilityWarning = warning
     }
 
-    func setRuntimeState(_ state: RuntimeState) {
-        runtimeState = state
+    func setPhase(_ phase: DictationPhase) {
+        self.phase = phase
     }
 
     var labelSymbolName: String {
         if hasAccessibilityWarning {
             return "mic.slash.fill"
         }
-
-        switch runtimeState {
-        case .idle:
-            return "mic.fill"
-        case .recording:
-            return "waveform.and.mic"
-        case .transcribing:
-            return "text.bubble.fill"
-        case .refining:
-            return "sparkles"
-        case .editing:
-            return "square.and.pencil"
-        case .cancelled:
-            return "xmark.circle.fill"
-        case .success:
-            return "checkmark.circle.fill"
-        case .error:
-            return "exclamationmark.triangle.fill"
-        }
+        return phase.menuBarSymbol
     }
 
     var labelTintColor: Color {
         if hasAccessibilityWarning {
             return .orange
         }
-
-        switch runtimeState {
-        case .idle:
-            return .primary
-        case .recording:
-            return .red
-        case .transcribing:
-            return .blue
-        case .refining:
-            return .purple
-        case .editing:
-            return .teal
-        case .cancelled:
-            return .secondary
-        case .success:
-            return .green
-        case .error:
-            return .yellow
-        }
+        return phase.menuBarTint
     }
 
     var labelAccessibilityDescription: String {
         if hasAccessibilityWarning {
             return "Murmur - Accessibility permission required"
         }
-
-        switch runtimeState {
-        case .idle:
-            return "Murmur"
-        case .recording:
-            return "Murmur - Recording"
-        case .transcribing:
-            return "Murmur - Transcribing"
-        case .refining:
-            return "Murmur - Refining"
-        case .editing:
-            return "Murmur - Reviewing Transcript"
-        case .cancelled:
-            return "Murmur - Cancelled"
-        case .success:
-            return "Murmur - Success"
-        case .error:
-            return "Murmur - Error"
-        }
+        return phase.menuBarAccessibilityLabel
     }
 
     static let supportedLanguages: [(id: String, name: String)] = [
@@ -129,30 +71,29 @@ final class MenuBarController {
 
     // MARK: - Persisted state
 
-    var selectedLocale: String {
-        get { UserDefaults.standard.string(forKey: "asr_locale") ?? "zh-CN" }
-        set {
-            UserDefaults.standard.set(newValue, forKey: "asr_locale")
+    var selectedLocale: String = UserDefaults.standard.string(forKey: "asr_locale") ?? "zh-CN" {
+        didSet { UserDefaults.standard.set(selectedLocale, forKey: "asr_locale") }
+    }
+
+    var llmEnabled: Bool = {
+        UserDefaults.standard.object(forKey: "llm_refine_enabled") == nil
+            ? true
+            : UserDefaults.standard.bool(forKey: "llm_refine_enabled")
+    }() {
+        didSet { UserDefaults.standard.set(llmEnabled, forKey: "llm_refine_enabled") }
+    }
+
+    var editBeforePaste: Bool = false {
+        didSet {
+            guard !suppressEditBeforePastePersistence else { return }
+            configManager.saveEditBeforePaste(editBeforePaste)
         }
     }
 
-    var llmEnabled: Bool {
-        get {
-            // Default to ON if never set.
-            UserDefaults.standard.object(forKey: "llm_refine_enabled") == nil
-                ? true
-                : UserDefaults.standard.bool(forKey: "llm_refine_enabled")
-        }
-        set {
-            UserDefaults.standard.set(newValue, forKey: "llm_refine_enabled")
-        }
-    }
-
-    var editBeforePaste: Bool {
-        get { configManager.editBeforePaste }
-        set {
-            configManager.saveEditBeforePaste(newValue)
-        }
+    func reloadEditBeforePaste() {
+        suppressEditBeforePastePersistence = true
+        defer { suppressEditBeforePastePersistence = false }
+        editBeforePaste = configManager.editBeforePaste
     }
 
     func updateSelectedLocale(_ locale: String) {
@@ -169,35 +110,26 @@ final class MenuBarController {
         onSettingsRequested?()
     }
 
+    func notifyMenuOpened() {
+        onMenuOpened?()
+    }
+
     func quitApp() {
         NSApp.terminate(nil)
     }
 
-    func openAccessibilitySettings() {
+    func requestAccessibilityAccess() {
+        if !TextInsertionService.isAccessibilityTrusted() {
+            TextInsertionService.promptAccessibility()
+        }
+
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
         }
     }
 
     private var runtimeStatusLine: String {
-        switch runtimeState {
-        case .idle:
-            return "Status: Ready"
-        case .recording:
-            return "Status: Recording…"
-        case .transcribing:
-            return "Status: Transcribing…"
-        case .refining:
-            return "Status: Refining…"
-        case .editing:
-            return "Status: Reviewing transcript…"
-        case .cancelled(let message):
-            return "Status: \(message)"
-        case .success(let message):
-            return "Status: \(message)"
-        case .error(let message):
-            return "Status: \(message)"
-        }
+        phase.menuBarStatusLine
     }
 
     var runtimeStatusText: String {
@@ -209,68 +141,175 @@ struct MurmurMenuBarExtraContent: View {
     @Bindable var menuBar: MenuBarController
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 10) {
+            // ── Accessibility warning ──────────────────────────────
             if menuBar.hasAccessibilityWarning {
-                Button {
-                    menuBar.openAccessibilitySettings()
-                } label: {
+                VStack(alignment: .leading, spacing: 10) {
                     Label("Accessibility permission required", systemImage: "exclamationmark.triangle.fill")
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.orange)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Text("Request access, then enable Murmur in System Settings for Fn monitoring and auto-paste.")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Button {
+                        menuBar.requestAccessibilityAccess()
+                    } label: {
+                        Label("Grant Accessibility Access", systemImage: "arrow.up.right.square")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
                 }
-                .buttonStyle(.plain)
-                .padding(.bottom, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
+                .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
 
-            Text("Fn hold to dictate · Esc to cancel")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            // ── Status header ─────────────────────────────────────
+            HStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(menuBar.labelTintColor.opacity(0.12))
+                    Image(systemName: menuBar.labelSymbolName)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(menuBar.labelTintColor)
+                }
+                .frame(width: 32, height: 32)
 
-            Text(menuBar.runtimeStatusText)
-                .font(.subheadline.weight(.medium))
-                .padding(.top, 2)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Murmur")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text(menuBar.runtimeStatusText)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+            }
 
-            Divider()
-                .padding(.vertical, 10)
+            Text("Hold Fn to dictate · ⌥Space to toggle · Esc to cancel")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.tertiary)
 
-            Picker("Language", selection: Binding(
-                get: { menuBar.selectedLocale },
-                set: { menuBar.updateSelectedLocale($0) }
-            )) {
-                ForEach(MenuBarController.supportedLanguages, id: \.id) { language in
-                    Text(language.name).tag(language.id)
+            // ── Controls card ─────────────────────────────────────
+            VStack(spacing: 0) {
+                // Language
+                MenuBarRow {
+                    Image(systemName: "globe")
+                        .frame(width: 18)
+                        .foregroundStyle(.secondary)
+                    Text("Language")
+                    Spacer(minLength: 8)
+                    Picker("", selection: Binding(
+                        get: { menuBar.selectedLocale },
+                        set: { menuBar.updateSelectedLocale($0) }
+                    )) {
+                        ForEach(MenuBarController.supportedLanguages, id: \.id) { lang in
+                            Text(lang.name).tag(lang.id)
+                        }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                }
+
+                Divider().padding(.leading, 40)
+
+                // LLM Refinement
+                MenuBarRow {
+                    Image(systemName: "sparkles")
+                        .frame(width: 18)
+                        .foregroundStyle(.secondary)
+                    Text("LLM Refinement")
+                    Spacer(minLength: 8)
+                    Toggle("", isOn: Binding(
+                        get: { menuBar.llmEnabled },
+                        set: { menuBar.updateLLMEnabled($0) }
+                    ))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                }
+
+                Divider().padding(.leading, 40)
+
+                // Review Before Paste
+                MenuBarRow {
+                    Image(systemName: "pencil.and.list.clipboard")
+                        .frame(width: 18)
+                        .foregroundStyle(.secondary)
+                    Text("Review Before Paste")
+                    Spacer(minLength: 8)
+                    Toggle("", isOn: Binding(
+                        get: { menuBar.editBeforePaste },
+                        set: { menuBar.editBeforePaste = $0 }
+                    ))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
                 }
             }
+            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 
-            Toggle("LLM Refinement", isOn: Binding(
-                get: { menuBar.llmEnabled },
-                set: { menuBar.updateLLMEnabled($0) }
-            ))
+            // ── Actions card ──────────────────────────────────────
+            VStack(spacing: 0) {
+                MenuBarRow {
+                    Image(systemName: "gearshape")
+                        .frame(width: 18)
+                        .foregroundStyle(.secondary)
+                    Button("Settings…") {
+                        menuBar.openSettings()
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut(",")
+                    Spacer()
+                    Text("⌘,")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                }
 
-            Toggle("Review Before Paste", isOn: Binding(
-                get: { menuBar.editBeforePaste },
-                set: { menuBar.editBeforePaste = $0 }
-            ))
+                Divider().padding(.leading, 40)
 
-            Divider()
-                .padding(.vertical, 10)
-
-            Button("Settings…") {
-                menuBar.openSettings()
+                MenuBarRow {
+                    Image(systemName: "power")
+                        .frame(width: 18)
+                        .foregroundStyle(.secondary)
+                    Button("Quit Murmur") {
+                        menuBar.quitApp()
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut("q")
+                    Spacer()
+                    Text("⌘Q")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                }
             }
-            .keyboardShortcut(",")
-
-            Button("Quit Murmur") {
-                menuBar.quitApp()
-            }
-            .keyboardShortcut("q")
+            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
-        .toggleStyle(.switch)
+        .font(.system(size: 13))
         .frame(width: 280)
-        .padding(14)
+        .padding(12)
+        .onAppear {
+            menuBar.notifyMenuOpened()
+        }
     }
 }
 
+/// Justified row: icon + label on the left, control on the right.
+private struct MenuBarRow<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        HStack(spacing: 8) {
+            content
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+}
+            
 struct MurmurMenuBarExtraLabel: View {
     @Bindable var menuBar: MenuBarController
 

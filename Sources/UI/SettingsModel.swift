@@ -24,6 +24,9 @@ final class SettingsModel {
     @ObservationIgnored
     private weak var hotkeyManager: HotkeyManager?
 
+    @ObservationIgnored
+    var onEditBeforePasteChanged: ((Bool) -> Void)?
+
     init(
         configManager: any ConfigManaging = ConfigManager.shared,
         polisher: LLMPolisher = .shared,
@@ -81,6 +84,12 @@ final class SettingsModel {
     func refreshSpeechRuntime() {
         modelManager.refresh()
         speechRuntime = SpeechRuntimeProbe.currentStatus(configManager: configManager)
+    }
+
+    func updateEditBeforePaste(_ enabled: Bool) {
+        editBeforePaste = enabled
+        configManager.saveEditBeforePaste(enabled)
+        onEditBeforePasteChanged?(enabled)
     }
 
     func selectSpeechModel(_ identifier: SpeechModelIdentifier) {

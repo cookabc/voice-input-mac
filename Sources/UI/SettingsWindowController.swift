@@ -10,6 +10,7 @@ final class SettingsWindowController {
     private let polisher: LLMPolisher
     private lazy var settingsModel = SettingsModel(configManager: configManager, polisher: polisher)
     weak var hotkeyManager: HotkeyManager?
+    var onEditBeforePasteChanged: ((Bool) -> Void)?
 
     init(
         configManager: any ConfigManaging = ConfigManager.shared,
@@ -20,6 +21,9 @@ final class SettingsWindowController {
     }
 
     func showSettings() {
+        settingsModel.onEditBeforePasteChanged = { [weak self] enabled in
+            self?.onEditBeforePasteChanged?(enabled)
+        }
         settingsModel.setHotkeyManager(hotkeyManager)
         settingsModel.reload()
 
@@ -36,10 +40,12 @@ final class SettingsWindowController {
         let win = NSWindow(contentViewController: hostingController)
         win.title = "Murmur Settings"
         win.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        win.setContentSize(NSSize(width: 620, height: 620))
-        win.minSize = NSSize(width: 560, height: 520)
+        win.setContentSize(NSSize(width: 720, height: 520))
+        win.minSize = NSSize(width: 640, height: 460)
         win.center()
         win.isReleasedWhenClosed = false
+        win.titlebarAppearsTransparent = true
+        win.toolbarStyle = .unified
 
         window = win
         win.makeKeyAndOrderFront(nil)
@@ -47,21 +53,137 @@ final class SettingsWindowController {
     }
 }
 
-// MARK: - SwiftUI settings form
+// MARK: - Sidebar pages
+
+private enum SettingsPage: String, CaseIterable, Identifiable {
+    case llmAPI = "LLM API"
+    case speechRuntime = "Speech Runtime"
+    case speechModels = "Speech Models"
+    case hotkey = "Hotkey"
+    case workflow = "Workflow"
+
+    var id: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .llmAPI:        "network"
+        case .speechRuntime: "waveform"
+        case .speechModels:  "arrow.down.circle"
+        case .hotkey:        "keyboard"
+        case .workflow:      "gearshape.2"
+        }
+    }
+}
+
+// MARK: - Root view — sidebar + detail
 
 private struct SettingsContentView: View {
     @Bindable var model: SettingsModel
+    @State private var selectedPage: SettingsPage = .llmAPI
 
     var body: some View {
-        Form {
-            Section("Hotkey") {
-                Text("Use this as an alternative to holding Fn.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+        NavigationSplitView {
+            List(SettingsPage.allCases, selection: $selectedPage) { page in
+                Label(page.rawValue, systemImage: page.icon)
+                    .tag(page)
+            }
+            .listStyle(.sidebar)
+            .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 240)
+        } detail: {
+            ScrollView {
+                detailContent
+                    .frame(maxWidth: 520, alignment: .leading)
+                    .padding(24)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(nsColor: .windowBackgroundColor))
+        }
+    }
 
-                HStack(spacing: 12) {
+    @ViewBuilder
+    private var detailContent: some View {
+        switch selectedPage {
+        case .hotkey:        HotkeyPage(model: model)
+        case .speechRuntime: SpeechRuntimePage(model: model)
+        case .speechModels:  SpeechModelsPage(model: model)
+        case .llmAPI:        LLMAPIPage(model: model)
+        case .workflow:      WorkflowPage(model: model)
+        }
+    }
+}
+
+// MARK: - Page header
+
+private struct PageHeader: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.title2.weight(.semibold))
+            Text(subtitle)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.bottom, 8)
+    }
+}
+
+// MARK: - Grouped card container
+
+private struct SettingsCard<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            content
+        }
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+        )
+    }
+}
+
+/// A single row inside a SettingsCard.
+private struct CardRow<Content: View>: View {
+    var showDivider: Bool = true
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                content
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+
+            if showDivider {
+                Divider().padding(.leading, 16)
+            }
+        }
+    }
+}
+
+// MARK: - 1. Hotkey Page
+
+private struct HotkeyPage: View {
+    @Bindable var model: SettingsModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            PageHeader(
+                title: "Hotkey",
+                subtitle: "Use a keyboard shortcut as an alternative to holding the Fn key."
+            )
+
+            SettingsCard {
+                CardRow(showDivider: false) {
                     Text("Shortcut")
-                        .frame(width: 88, alignment: .trailing)
+                        .frame(width: 80, alignment: .leading)
 
                     ZStack {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -77,7 +199,7 @@ private struct SettingsContentView: View {
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
                             .foregroundStyle(model.isRecordingHotkey ? .secondary : .primary)
                     }
-                    .frame(maxWidth: 220, minHeight: 32, maxHeight: 32)
+                    .frame(maxWidth: 200, minHeight: 32, maxHeight: 32)
                     .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     .onTapGesture { model.isRecordingHotkey = true }
                     .background(
@@ -89,135 +211,286 @@ private struct SettingsContentView: View {
                         )
                     )
 
+                    Spacer()
+
                     Button("Reset") {
                         model.resetHotkey()
                     }
                     .controlSize(.small)
                 }
             }
+        }
+    }
+}
 
-            Section("Speech Runtime") {
-                Text(model.speechRuntime.summaryLine)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(model.speechRuntime.isHelperAvailable ? Color.green : Color.red)
+// MARK: - 2. Speech Runtime Page
 
-                infoRow(label: "Provider", value: model.speechRuntime.providerIdentifier)
+private struct SpeechRuntimePage: View {
+    @Bindable var model: SettingsModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            PageHeader(
+                title: "Speech Runtime",
+                subtitle: "Current final-transcription engine status."
+            )
+
+            SettingsCard {
+                runtimeRow(label: "Status", value: model.speechRuntime.summaryLine,
+                           color: model.speechRuntime.isHelperAvailable ? .green : .red, showDivider: true)
+                runtimeRow(label: "Provider", value: model.speechRuntime.providerIdentifier, showDivider: true)
 
                 if let modelName = model.speechRuntime.modelName {
-                    infoRow(label: "Model", value: modelName)
+                    runtimeRow(label: "Model", value: modelName, showDivider: true)
                 }
 
-                infoRow(
-                    label: "Model Status",
-                    value: model.speechRuntime.modelStatusLine,
-                    valueColor: model.speechRuntime.isModelAvailable ? .green : .red,
-                    monospaced: false
-                )
+                runtimeRow(label: "Model Status", value: model.speechRuntime.modelStatusLine,
+                           color: model.speechRuntime.isModelAvailable ? .green : .red, showDivider: true)
+                runtimeRow(label: "Helper", value: model.speechRuntime.helperStatusLine,
+                           color: model.speechRuntime.isHelperAvailable ? .green : .red, showDivider: true)
+                runtimeRow(label: "Origin", value: model.speechRuntime.helperOriginLine, showDivider: true)
+                runtimeRow(label: "Path", value: model.speechRuntime.helperPath, mono: true, showDivider: true)
+                runtimeRow(label: "Support", value: model.speechRuntime.supportDirectoryPath, mono: true, showDivider: true)
+                runtimeRow(label: "Config", value: model.speechRuntime.configFilePath, mono: true, showDivider: false)
+            }
 
-                infoRow(
-                    label: "Helper",
-                    value: model.speechRuntime.helperStatusLine,
-                    valueColor: model.speechRuntime.isHelperAvailable ? .green : .red,
-                    monospaced: false
-                )
-                infoRow(label: "Origin", value: model.speechRuntime.helperOriginLine, monospaced: false)
-                infoRow(label: "Path", value: model.speechRuntime.helperPath)
-                infoRow(label: "Support", value: model.speechRuntime.supportDirectoryPath)
-                infoRow(label: "Config", value: model.speechRuntime.configFilePath)
+            HStack(spacing: 12) {
+                Button("Refresh Runtime") { model.refreshSpeechRuntime() }
 
-                Text("This section mirrors the current final-transcription runtime. Runtime switching and model management will extend from here.")
+                Button("Reveal Helper") {
+                    model.revealInFinder(path: model.speechRuntime.helperPath)
+                }
+                .disabled(!FileManager.default.fileExists(atPath: model.speechRuntime.helperPath))
+
+                Button("Reveal Support Files") {
+                    model.revealInFinder(path: model.speechRuntime.supportDirectoryPath)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func runtimeRow(label: String, value: String, color: Color = .primary, mono: Bool = false, showDivider: Bool) -> some View {
+        CardRow(showDivider: showDivider) {
+            Text(label)
+                .foregroundStyle(.secondary)
+                .frame(width: 90, alignment: .leading)
+            Spacer()
+            Group {
+                if mono {
+                    Text(value).font(.system(.body, design: .monospaced))
+                } else {
+                    Text(value)
+                }
+            }
+            .foregroundStyle(color)
+            .textSelection(.enabled)
+            .multilineTextAlignment(.trailing)
+        }
+    }
+}
+
+// MARK: - 3. Speech Models Page
+
+private struct SpeechModelsPage: View {
+    @Bindable var model: SettingsModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            PageHeader(
+                title: "Speech Models",
+                subtitle: "Manage local ASR models for the final transcription pass."
+            )
+
+            ForEach(model.modelManager.models) { speechModel in
+                SettingsCard {
+                    CardRow(showDivider: true) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(speechModel.displayName)
+                                .font(.headline)
+                            Text(speechModel.summary)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        modelBadge(for: speechModel)
+                    }
+
+                    CardRow(showDivider: true) {
+                        Text("Languages")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(speechModel.supportedLanguages)
+                            .multilineTextAlignment(.trailing)
+                    }
+
+                    CardRow(showDivider: true) {
+                        Text("Location")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(speechModel.installPath)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                            .multilineTextAlignment(.trailing)
+                            .lineLimit(2)
+                    }
+
+                    CardRow(showDivider: false) {
+                        modelActions(for: speechModel)
+                        Spacer()
+                    }
+                }
+            }
+
+            if let activeDownload = model.modelManager.activeDownloadModel {
+                SettingsCard {
+                    CardRow(showDivider: false) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Installing \(activeDownload.displayName)…")
+                                .font(.caption.weight(.semibold))
+                            if let progress = model.modelManager.downloadProgress {
+                                ProgressView(value: progress)
+                            } else {
+                                ProgressView()
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+
+            if !model.modelManager.statusMessage.isEmpty {
+                Text(model.modelManager.statusMessage)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-
-                HStack {
-                    Button("Refresh Runtime") { model.refreshSpeechRuntime() }
-
-                    Button("Reveal Helper") {
-                        model.revealInFinder(path: model.speechRuntime.helperPath)
-                    }
-                    .disabled(!FileManager.default.fileExists(atPath: model.speechRuntime.helperPath))
-
-                    Button("Reveal Support Files") {
-                        model.revealInFinder(path: model.speechRuntime.supportDirectoryPath)
-                    }
-                }
             }
 
-            ModelDownloadView(model: model)
-
-            Section("LLM API") {
-                fieldRow(label: "Base URL", text: $model.baseURL)
-                fieldRow(label: "API Key", text: $model.apiKey, secure: true)
-                fieldRow(label: "Model", text: $model.model)
-            }
-
-            Section("Workflow") {
-                Toggle("Show review window before inserting text", isOn: $model.editBeforePaste)
-            }
-
-            Section {
-                HStack {
-                    Button("Test Connection") { model.testConnection() }
-                        .disabled(model.isTesting)
-
-                    Spacer()
-
-                    if !model.statusMessage.isEmpty {
-                        Text(model.statusMessage)
-                            .font(.caption)
-                            .foregroundColor(model.statusMessage.hasPrefix("✓") ? .green : .secondary)
-                    }
-
-                    Spacer()
-
-                    Button("Save") { model.save() }
-                        .keyboardShortcut(.defaultAction)
-                }
-            }
-        }
-        .formStyle(.grouped)
-        .padding(20)
-        .frame(minWidth: 560, idealWidth: 620, minHeight: 520, idealHeight: 620)
-    }
-
-    @ViewBuilder
-    private func fieldRow(label: String, text: Binding<String>, secure: Bool = false) -> some View {
-        HStack {
-            Text(label)
-                .frame(width: 88, alignment: .trailing)
-            if secure {
-                SecureField("", text: text)
-                    .textFieldStyle(.roundedBorder)
-            } else {
-                TextField("", text: text)
-                    .textFieldStyle(.roundedBorder)
+            Button("Reveal Models Folder") {
+                model.revealInFinder(path: model.modelManager.modelsDirectoryPath)
             }
         }
     }
 
     @ViewBuilder
-    private func infoRow(
-        label: String,
-        value: String,
-        valueColor: Color = .primary,
-        monospaced: Bool = true
-    ) -> some View {
-        HStack(alignment: .top) {
-            Text(label)
-                .frame(width: 88, alignment: .trailing)
+    private func modelBadge(for speechModel: SpeechModelState) -> some View {
+        if speechModel.isSelected {
+            Label("Current", systemImage: "checkmark.circle.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.green)
+        } else if speechModel.isInstalled {
+            Label("Installed", systemImage: "internaldrive.fill")
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
+        } else {
+            Label("Not Installed", systemImage: "arrow.down.circle")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.orange)
+        }
+    }
 
-            if monospaced {
-                Text(value)
-                    .font(.system(.body, design: .monospaced))
-                    .foregroundStyle(valueColor)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+    @ViewBuilder
+    private func modelActions(for speechModel: SpeechModelState) -> some View {
+        HStack(spacing: 12) {
+            if speechModel.isInstalled {
+                Button(speechModel.isSelected ? "Current Model" : "Use This Model") {
+                    model.selectSpeechModel(speechModel.id)
+                }
+                .disabled(speechModel.isSelected)
             } else {
-                Text(value)
-                    .foregroundStyle(valueColor)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button(model.modelManager.activeDownloadModel == speechModel.id ? "Installing…" : "Install Model") {
+                    Task { await model.installSpeechModel(speechModel.id) }
+                }
+                .disabled(model.modelManager.activeDownloadModel != nil)
+            }
+
+            Button("Reveal") {
+                model.revealInFinder(path: speechModel.installPath)
+            }
+            .disabled(!speechModel.isInstalled)
+        }
+    }
+}
+
+// MARK: - 4. LLM API Page
+
+private struct LLMAPIPage: View {
+    @Bindable var model: SettingsModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            PageHeader(
+                title: "LLM API",
+                subtitle: "Configure the language model used for text refinement."
+            )
+
+            SettingsCard {
+                CardRow(showDivider: true) {
+                    Text("Base URL")
+                        .frame(width: 80, alignment: .leading)
+                    TextField("https://api.openai.com/v1", text: $model.baseURL)
+                        .textFieldStyle(.roundedBorder)
+                }
+
+                CardRow(showDivider: true) {
+                    Text("API Key")
+                        .frame(width: 80, alignment: .leading)
+                    SecureField("sk-…", text: $model.apiKey)
+                        .textFieldStyle(.roundedBorder)
+                }
+
+                CardRow(showDivider: false) {
+                    Text("Model")
+                        .frame(width: 80, alignment: .leading)
+                    TextField("gpt-4o-mini", text: $model.model)
+                        .textFieldStyle(.roundedBorder)
+                }
+            }
+
+            HStack(spacing: 12) {
+                Button("Test Connection") { model.testConnection() }
+                    .disabled(model.isTesting)
+
+                Button("Save") { model.save() }
+                    .keyboardShortcut(.defaultAction)
+
+                if !model.statusMessage.isEmpty {
+                    Text(model.statusMessage)
+                        .font(.caption)
+                        .foregroundColor(model.statusMessage.hasPrefix("✓") ? .green : .secondary)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - 5. Workflow Page
+
+private struct WorkflowPage: View {
+    @Bindable var model: SettingsModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            PageHeader(
+                title: "Workflow",
+                subtitle: "Customize how Murmur inserts transcribed text."
+            )
+
+            SettingsCard {
+                CardRow(showDivider: false) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Review Before Paste")
+                        Text("Show a review window before inserting text into the active app.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Toggle("", isOn: Binding(
+                        get: { model.editBeforePaste },
+                        set: { model.updateEditBeforePaste($0) }
+                    ))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                }
             }
         }
     }
