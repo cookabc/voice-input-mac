@@ -74,9 +74,15 @@ final class LiveSpeechRecognizer {
         request?.append(buffer)
     }
 
-    func stop() {
+    /// Signal end of audio input without terminating the recognition task.
+    /// Call this, wait briefly for final results, then call `stop()` to clean up.
+    func endAudio() {
         isActive = false
         request?.endAudio()
+    }
+
+    func stop() {
+        isActive = false
         task?.finish()
         task = nil
         request = nil

@@ -22,6 +22,7 @@ struct MurmurApp: App {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private static let fnHoldDelayNanoseconds: UInt64 = 250_000_000
 
     private let configManager: any ConfigManaging
     private let promptManager: any PromptManaging
@@ -40,6 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         configManager: configManager,
         polisher: polisher
     )
+    private var fnHoldTask: Task<Void, Never>?
     private var escLocalMonitor: Any?
     private var escGlobalMonitor: Any?
 
@@ -66,6 +68,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Lifecycle
 
     func applicationWillTerminate(_ notification: Notification) {
+        fnHoldTask?.cancel()
+        fnHoldTask = nil
         dictationCoordinator.prepareForTermination()
 
         // Remove ESC monitors to prevent memory leaks
@@ -87,9 +91,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             showLaunchConfigurationAlert(for: launchIssue)
             return
         }
-
-        // Prompt for Accessibility if needed (required for CGEvent tap + paste).
-        TextInsertionService.promptAccessibility()
 
         // Request speech recognition permission.
         Task { await LiveSpeechRecognizer.requestAuthorization() }
@@ -113,14 +114,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Setup helpers
 
     private func setupMenuBar() {
+        dictationCoordinator.menuBar = menuBar
         dictationCoordinator.selectedLocaleProvider = { [weak self] in
             self?.menuBar.selectedLocale ?? "zh-CN"
         }
         dictationCoordinator.llmEnabledProvider = { [weak self] in
             self?.menuBar.llmEnabled ?? true
-        }
-        dictationCoordinator.runtimeStateSink = { [weak self] runtimeState in
-            self?.menuBar.setRuntimeState(runtimeState)
         }
         menuBar.onLanguageChanged = { [weak self] _ in
             self?.dictationCoordinator.resetLiveSpeechRecognizer()
@@ -129,36 +128,79 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBar.onSettingsRequested = { [weak self] in
             self?.settingsController.showSettings()
         }
+        menuBar.onMenuOpened = { [weak self] in
+            self?.refreshAccessibilityState()
+        }
+        settingsController.onEditBeforePasteChanged = { [weak self] _ in
+            self?.menuBar.reloadEditBeforePaste()
+        }
     }
 
     private func setupFnKey() {
         fnMonitor.onFnDown = { [weak self] in
-            Task { @MainActor in self?.dictationCoordinator.startDictation() }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.fnHoldTask?.cancel()
+
+                guard self.dictationCoordinator.phase == .idle else { return }
+
+                // Start recording after a brief hold to filter out accidental taps.
+                self.fnHoldTask = Task { @MainActor [weak self] in
+                    guard let self else { return }
+
+                    do {
+                        try await Task.sleep(nanoseconds: Self.fnHoldDelayNanoseconds)
+                    } catch {
+                        return
+                    }
+
+                    guard !Task.isCancelled, self.dictationCoordinator.phase == .idle else { return }
+                    self.fnHoldTask = nil
+                    self.dictationCoordinator.startDictation()
+                }
+            }
         }
+        // Push-to-talk: release Fn → stop recording and begin transcription.
         fnMonitor.onFnUp = { [weak self] in
-            Task { @MainActor in self?.dictationCoordinator.stopDictation() }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.fnHoldTask?.cancel()
+                self.fnHoldTask = nil
+
+                if self.dictationCoordinator.phase == .recording {
+                    self.dictationCoordinator.stopDictation()
+                }
+            }
         }
-        if !fnMonitor.start() {
-            MurmurLogger.app.error("CGEvent tap failed; accessibility permission is required")
-            showAccessibilityNotice()
+        refreshAccessibilityState()
+
+        // Retry tap when app re-activates (user may have just granted permission).
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, self.menuBar.hasAccessibilityWarning else { return }
+                self.refreshAccessibilityState()
+            }
         }
     }
 
-    private func showAccessibilityNotice() {
-        menuBar.setAccessibilityWarning(true)
+    private func refreshAccessibilityState() {
+        guard TextInsertionService.isAccessibilityTrusted() else {
+            fnMonitor.stop()
+            menuBar.setAccessibilityWarning(true)
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            self?.noticePanel.show(
-                title: "Accessibility Required",
-                message: "Murmur needs Accessibility access to monitor Fn and paste text into the active app. You can grant access now or return later from the menu bar warning state.",
-                style: .warning,
-                primaryAction: NoticePanelAction(title: "Open Settings", role: nil) {
-                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-                        NSWorkspace.shared.open(url)
-                    }
-                },
-                secondaryAction: NoticePanelAction(title: "Later", role: .cancel) {}
-            )
+            MurmurLogger.app.error("CGEvent tap failed; accessibility permission is required")
+            return
+        }
+
+        if fnMonitor.start() {
+            menuBar.setAccessibilityWarning(false)
+        } else {
+            menuBar.setAccessibilityWarning(true)
+            MurmurLogger.app.info("Accessibility is granted, but the event tap is still unavailable; keeping warning visible")
         }
     }
 
@@ -183,16 +225,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupEscMonitor() {
         escLocalMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if event.keyCode == 53 { // Esc
-                Task { @MainActor in self?.dictationCoordinator.cancelDictation() }
+                Task { @MainActor in self?.handleEscapeKey() }
                 return nil
             }
             return event
         }
         escGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if event.keyCode == 53 {
-                Task { @MainActor in self?.dictationCoordinator.cancelDictation() }
+                Task { @MainActor in self?.handleEscapeKey() }
             }
         }
+    }
+
+    private func handleEscapeKey() {
+        // Esc always means cancel, regardless of phase.
+        guard dictationCoordinator.phase != .idle else { return }
+        dictationCoordinator.cancelDictation()
     }
 
     private func showOnboardingIfNeeded() {
@@ -204,7 +252,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             self?.noticePanel.show(
                 title: "Welcome to Murmur",
-                message: "Hold Fn or press Option-Space to start dictating. Release to transcribe and paste, or press Esc anytime to cancel.",
+                message: "Hold Fn to dictate (release to finish), or press ⌥Space to toggle. Esc cancels.",
                 style: .info,
                 primaryAction: NoticePanelAction(title: "Got it", role: nil) {},
                 secondaryAction: NoticePanelAction(title: "Open Settings", role: nil) { [weak self] in

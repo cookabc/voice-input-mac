@@ -2,14 +2,6 @@ import AppKit
 
 @MainActor
 final class DictationCoordinator {
-    private enum State {
-        case idle
-        case recording
-        case transcribing
-        case refining
-        case editing
-        case inserting
-    }
 
     private let capsulePanel: CapsulePanel
     private let audioSession: AudioSession
@@ -19,12 +11,15 @@ final class DictationCoordinator {
     private let polisher: LLMPolisher
 
     private var liveSpeech: LiveSpeechRecognizer?
-    private var state: State = .idle
+    private(set) var phase: DictationPhase = .idle
     private var processingTask: Task<Void, Never>?
+    private var textInsertionTarget: TextInsertionTarget?
 
     var selectedLocaleProvider: () -> String = { "zh-CN" }
     var llmEnabledProvider: () -> Bool = { true }
-    var runtimeStateSink: (MenuBarController.RuntimeState) -> Void = { _ in }
+
+    /// Attached by AppDelegate so the menu bar tracks phase changes.
+    weak var menuBar: MenuBarController?
 
     init(
         capsulePanel: CapsulePanel,
@@ -42,13 +37,35 @@ final class DictationCoordinator {
         self.polisher = polisher
     }
 
+    // MARK: - Single phase setter (replaces 6 scattered assignments)
+
+    private func setPhase(_ newPhase: DictationPhase, text: String? = nil) {
+        phase = newPhase
+        capsulePanel.viewModel.phase = newPhase
+        if let text {
+            capsulePanel.viewModel.text = text
+        } else if let pinnedText = newPhase.pinnedCapsuleText {
+            capsulePanel.viewModel.text = pinnedText
+        } else if newPhase != .recording {
+            capsulePanel.viewModel.text = ""
+        }
+        if newPhase != .recording { capsulePanel.viewModel.audioLevel = 0 }
+        let displayText = capsulePanel.viewModel.text.isEmpty
+            ? newPhase.capsuleDetailPlaceholder
+            : capsulePanel.viewModel.text
+        capsulePanel.updateWidth(for: displayText, animated: false)
+        menuBar?.setPhase(newPhase)
+    }
+
+    // MARK: - Public API
+
     func handlePrimaryTrigger() {
-        switch state {
+        switch phase {
         case .idle:
             startDictation()
         case .recording:
             stopDictation()
-        case .transcribing, .refining, .editing, .inserting:
+        default:
             break
         }
     }
@@ -60,10 +77,11 @@ final class DictationCoordinator {
     func prepareForTermination() {
         processingTask?.cancel()
         processingTask = nil
+        textInsertionTarget = nil
 
         let audioPath = audioSession.recordingPath
 
-        if state == .recording {
+        if phase == .recording {
             audioSession.stopRecording()
             liveSpeech?.stop()
         }
@@ -72,9 +90,7 @@ final class DictationCoordinator {
         capsulePanel.orderOut(nil)
         capsulePanel.viewModel.audioLevel = 0
         capsulePanel.viewModel.text = ""
-        capsulePanel.viewModel.state = .recording
-        state = .idle
-        runtimeStateSink(.idle)
+        setPhase(.idle)
 
         if !audioPath.isEmpty {
             try? FileManager.default.removeItem(atPath: audioPath)
@@ -82,9 +98,12 @@ final class DictationCoordinator {
     }
 
     func startDictation() {
-        guard state == .idle else { return }
-        state = .recording
-        runtimeStateSink(.recording)
+        guard phase == .idle else { return }
+        textInsertionTarget = TextInsertionService.captureFrontmostTarget()
+        if let target = textInsertionTarget {
+            MurmurLogger.ui.info("Captured insertion target: \(target.displayName, privacy: .public) [pid: \(target.processIdentifier)]")
+        }
+        setPhase(.recording, text: "")
 
         audioSession.levelSink = { [weak self] level in
             DispatchQueue.main.async {
@@ -98,8 +117,20 @@ final class DictationCoordinator {
         }
         liveSpeech?.onPartialResult = { [weak self] text in
             guard let self else { return }
+            guard self.phase == .recording else { return }
             self.capsulePanel.viewModel.text = text
-            self.capsulePanel.updateWidth(for: text)
+            self.capsulePanel.updateWidth(for: text, animated: false)
+        }
+
+        // Start live speech FIRST so its request exists before audio buffers arrive.
+        do {
+            try liveSpeech?.start()
+        } catch {
+            MurmurLogger.speech.error("Live speech start failed: \(error.localizedDescription, privacy: .public)")
+        }
+
+        audioSession.bufferSink = { [weak self] buffer, time in
+            self?.liveSpeech?.appendBuffer(buffer, at: time)
         }
 
         do {
@@ -107,38 +138,27 @@ final class DictationCoordinator {
             MurmurLogger.speech.info("Recording started: \(path, privacy: .public)")
         } catch {
             MurmurLogger.speech.error("Recording failed: \(error.localizedDescription, privacy: .public)")
-            showTransientCapsuleState(.error, text: error.localizedDescription, audioPath: nil)
+            liveSpeech?.stop()
+            showTransientPhase(.failed(error.localizedDescription), audioPath: nil)
             return
         }
 
-        audioSession.bufferSink = { [weak self] buffer, time in
-            self?.liveSpeech?.appendBuffer(buffer, at: time)
-        }
-        do {
-            try liveSpeech?.start()
-        } catch {
-            MurmurLogger.speech.error("Live speech start failed: \(error.localizedDescription, privacy: .public)")
-        }
-
-        capsulePanel.viewModel.state = .recording
-        capsulePanel.viewModel.text = ""
-        capsulePanel.viewModel.audioLevel = 0
         capsulePanel.showCapsule()
     }
 
     func stopDictation() {
-        guard state == .recording else { return }
-        state = .transcribing
+        guard phase == .recording else { return }
 
         let audioPath = audioSession.recordingPath
+        // Capture live text NOW, before setPhase wipes it.
         let liveText = capsulePanel.viewModel.text
 
         audioSession.stopRecording()
         liveSpeech?.stop()
 
-        capsulePanel.viewModel.state = .transcribing
-        capsulePanel.viewModel.audioLevel = 0
-        runtimeStateSink(.transcribing)
+        MurmurLogger.speech.error("Pipeline: stopDictation (liveText='\(liveText, privacy: .public)', audioPath=\(audioPath, privacy: .public))")
+
+        setPhase(.transcribing)
 
         let finalTranscriptionEngine = self.finalTranscriptionEngine
 
@@ -149,6 +169,8 @@ final class DictationCoordinator {
                 ?? ColiTranscriber.defaultModel
             let modelIdentifier = SpeechModelIdentifier(rawValue: selectedModel) ?? .sensevoice
 
+            MurmurLogger.speech.error("Pipeline: transcribing (liveText length=\(liveText.count), coli available=\(speechRuntime.isHelperAvailable && speechRuntime.isModelAvailable))")
+
             if speechRuntime.isHelperAvailable && speechRuntime.isModelAvailable {
                 do {
                     let result = try await finalTranscriptionEngine.transcribe(
@@ -158,7 +180,13 @@ final class DictationCoordinator {
                             selectedModel: modelIdentifier
                         )
                     )
-                    transcript = result.text
+                    let coliText = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !coliText.isEmpty {
+                        transcript = coliText
+                        MurmurLogger.speech.error("Pipeline: coli transcription complete (\(coliText.count) chars): '\(coliText, privacy: .public)'")
+                    } else {
+                        MurmurLogger.speech.error("Pipeline: coli returned empty, keeping liveText (\(liveText.count) chars)")
+                    }
                 } catch {
                     MurmurLogger.speech.error("Coli failed, falling back to live text: \(error.localizedDescription, privacy: .public)")
                 }
@@ -167,6 +195,7 @@ final class DictationCoordinator {
             }
 
             guard !Task.isCancelled else {
+                MurmurLogger.speech.info("Pipeline: cancelled after transcription")
                 finish(audioPath: audioPath)
                 return
             }
@@ -176,15 +205,14 @@ final class DictationCoordinator {
                 let errorText = (speechRuntime.isHelperAvailable && speechRuntime.isModelAvailable)
                     ? "No speech detected"
                     : "Speech runtime unavailable. Check Settings > Speech Models."
-                showTransientCapsuleState(.error, text: errorText, audioPath: audioPath)
+                MurmurLogger.speech.error("Pipeline: empty transcript — \(errorText, privacy: .public)")
+                showTransientPhase(.failed(errorText), audioPath: audioPath)
                 return
             }
 
             if llmEnabledProvider() {
-                state = .refining
-                capsulePanel.viewModel.state = .refining
-                capsulePanel.viewModel.text = "Refining…"
-                runtimeStateSink(.refining)
+                MurmurLogger.speech.error("Pipeline: refining via LLM")
+                setPhase(.refining, text: "Refining…")
 
                 do {
                     let dict = DictionaryManager.loadEntries()
@@ -192,72 +220,76 @@ final class DictationCoordinator {
                         text: transcript,
                         dictionary: dict
                     )
+                    MurmurLogger.speech.error("Pipeline: LLM polish complete (\(transcript.count) chars)")
                 } catch {
                     MurmurLogger.network.error("LLM polish failed: \(error.localizedDescription, privacy: .public)")
                 }
             }
 
             guard !Task.isCancelled else {
+                MurmurLogger.speech.error("Pipeline: cancelled after polish")
                 finish(audioPath: audioPath)
                 return
             }
 
             let transcriptAction = await resolveTranscriptAction(transcript)
+            MurmurLogger.ui.error("Pipeline: transcript action resolved: \(String(describing: transcriptAction), privacy: .public)")
 
             guard !Task.isCancelled else {
+                MurmurLogger.speech.error("Pipeline: cancelled after action resolution")
                 finish(audioPath: audioPath)
                 return
             }
 
             switch transcriptAction {
             case .cancel:
-                showTransientCapsuleState(.cancelled, text: "Cancelled", audioPath: audioPath, hideAfter: 0.5)
+                showTransientPhase(.cancelled("Cancelled"), audioPath: audioPath, hideAfter: 0.5)
                 return
             case .copy(let editedText):
                 TextInsertionService.copyToClipboard(editedText)
-                showTransientCapsuleState(.success, text: "Copied to clipboard", audioPath: audioPath, hideAfter: 0.8)
+                showTransientPhase(.completed("Copied to clipboard"), audioPath: audioPath, hideAfter: 0.8)
                 return
             case .insert(let editedText):
                 transcript = editedText
             }
 
-            state = .inserting
+            MurmurLogger.ui.error("Pipeline: inserting \(transcript.count) chars into target")
+            setPhase(.inserting)
             switch await injectText(transcript) {
             case .success:
-                finish(audioPath: audioPath)
+                MurmurLogger.ui.error("Pipeline: insertion succeeded")
+                showTransientPhase(.completed("Done"), audioPath: audioPath, hideAfter: 0.6)
             case .failure(let error):
                 MurmurLogger.ui.error("Text insertion failed: \(error.localizedDescription, privacy: .public)")
-                showTransientCapsuleState(.error, text: error.localizedDescription, audioPath: audioPath, hideAfter: 1.4)
+                showTransientPhase(.failed(error.localizedDescription), audioPath: audioPath, hideAfter: 1.4)
             }
         }
     }
 
     func cancelDictation() {
-        guard state != .idle else { return }
+        guard phase != .idle else { return }
 
         processingTask?.cancel()
         processingTask = nil
 
         let audioPath = audioSession.recordingPath
 
-        if state == .recording {
+        if phase == .recording {
             audioSession.stopRecording()
             liveSpeech?.stop()
         }
 
-        capsulePanel.viewModel.state = .cancelled
-        capsulePanel.viewModel.text = ""
-        capsulePanel.viewModel.audioLevel = 0
-        showTransientCapsuleState(.cancelled, text: "Cancelled", audioPath: audioPath, hideAfter: 0.5)
+        showTransientPhase(.cancelled("Cancelled"), audioPath: audioPath, hideAfter: 0.5)
     }
+
+    // MARK: - Private helpers
 
     private func resolveTranscriptAction(_ transcript: String) async -> TranscriptEditAction {
         guard configManager.editBeforePaste else {
             return .insert(transcript)
         }
 
-        state = .editing
-        runtimeStateSink(.editing)
+        setPhase(.editing)
         capsulePanel.hideCapsule()
         return await transcriptEditPanel.edit(text: transcript)
     }
@@ -266,10 +298,41 @@ final class DictationCoordinator {
         let savedIME = IMEService.switchToASCII()
         let savedClipboard = TextInsertionService.saveClipboard()
         let insertedClipboardChangeCount = TextInsertionService.copyToClipboard(text)
+        let insertionTarget = textInsertionTarget
+
+        MurmurLogger.ui.error("injectText: target=\(insertionTarget?.displayName ?? "nil", privacy: .public), AX trusted=\(TextInsertionService.isAccessibilityTrusted())")
 
         do {
-            try TextInsertionService.simulatePaste()
-            try await Task.sleep(nanoseconds: 150_000_000)
+            // Step 1: Reactivate the target app first so it has keyboard focus.
+            if !TextInsertionService.reactivate(insertionTarget) {
+                MurmurLogger.ui.error("injectText: could not reactivate \(insertionTarget?.displayName ?? "target", privacy: .public)")
+            }
+            try await Task.sleep(nanoseconds: 300_000_000)
+
+            // Step 2: Try to restore focus to the exact text field.
+            let focusRestored = TextInsertionService.restoreFocus(to: insertionTarget)
+            MurmurLogger.ui.error("injectText: focus restored=\(focusRestored)")
+            if focusRestored {
+                try await Task.sleep(nanoseconds: 100_000_000)
+            }
+
+            // Step 3: Try direct AX insertion (works for native text fields).
+            var directInserted = false
+            if TextInsertionService.isAccessibilityTrusted() {
+                directInserted = (try? TextInsertionService.insertTextDirectly(text, target: insertionTarget)) ?? false
+                if !directInserted {
+                    directInserted = (try? TextInsertionService.insertTextDirectly(text)) ?? false
+                }
+            }
+
+            if directInserted {
+                MurmurLogger.ui.error("injectText: direct AX insertion succeeded")
+            } else {
+                // Step 4: Fall back to simulated Cmd+V paste.
+                MurmurLogger.ui.error("injectText: using paste simulation")
+                try TextInsertionService.simulatePaste()
+                try await Task.sleep(nanoseconds: 300_000_000)
+            }
 
             if let saved = savedClipboard {
                 _ = TextInsertionService.restoreClipboard(
@@ -290,17 +353,12 @@ final class DictationCoordinator {
         }
     }
 
-    private func showTransientCapsuleState(
-        _ capsuleState: CapsuleState,
-        text: String,
+    private func showTransientPhase(
+        _ newPhase: DictationPhase,
         audioPath: String?,
         hideAfter delay: TimeInterval = 1.0
     ) {
-        runtimeStateSink(menuBarRuntimeState(for: capsuleState, text: text))
-        capsulePanel.viewModel.state = capsuleState
-        capsulePanel.viewModel.text = text
-        capsulePanel.viewModel.audioLevel = 0
-        capsulePanel.updateWidth(for: text)
+        setPhase(newPhase)
 
         if !capsulePanel.isVisible {
             capsulePanel.showCapsule()
@@ -311,28 +369,11 @@ final class DictationCoordinator {
         }
     }
 
-    private func menuBarRuntimeState(for capsuleState: CapsuleState, text: String) -> MenuBarController.RuntimeState {
-        switch capsuleState {
-        case .recording:
-            return .recording
-        case .transcribing:
-            return .transcribing
-        case .refining:
-            return .refining
-        case .cancelled:
-            return .cancelled(text.isEmpty ? "Cancelled" : text)
-        case .success:
-            return .success(text.isEmpty ? "Done" : text)
-        case .error:
-            return .error(text.isEmpty ? "Something went wrong" : text)
-        }
-    }
-
     private func finish(audioPath: String?) {
         capsulePanel.hideCapsule()
-        state = .idle
-        runtimeStateSink(.idle)
+        setPhase(.idle)
         processingTask = nil
+        textInsertionTarget = nil
         if let audioPath {
             try? FileManager.default.removeItem(atPath: audioPath)
         }
