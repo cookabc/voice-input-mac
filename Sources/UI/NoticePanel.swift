@@ -159,15 +159,7 @@ private struct NoticePanelView: View {
         }
         .padding(20)
         .frame(width: 380)
-        .background {
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(.regularMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
-                )
-        }
-        .shadow(color: .black.opacity(0.18), radius: 16, y: 8)
+        .panelBackground()
         .padding(12)
     }
 }

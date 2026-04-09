@@ -85,15 +85,7 @@ private struct TranscriptEditView: View {
 
             TextEditor(text: $draft)
                 .font(.system(size: 14))
-                .padding(10)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color(nsColor: .textBackgroundColor))
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
-                }
+                .inputFieldStyle()
 
             HStack {
                 Text("Cmd+Return inserts")
