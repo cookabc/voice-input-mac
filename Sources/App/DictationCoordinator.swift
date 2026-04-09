@@ -4,11 +4,11 @@ import AppKit
 final class DictationCoordinator {
 
     private let capsulePanel: CapsulePanel
-    private let audioSession: AudioSession
+    private let audioSession: any AudioRecording
     private let finalTranscriptionEngine: any FinalTranscriptionEngine
     private let transcriptEditPanel: TranscriptEditPanelController
     private let configManager: any ConfigManaging
-    private let polisher: LLMPolisher
+    private let polisher: any TextPolishing
 
     private var liveSpeech: LiveSpeechRecognizer?
     private(set) var phase: DictationPhase = .idle
@@ -23,11 +23,11 @@ final class DictationCoordinator {
 
     init(
         capsulePanel: CapsulePanel,
-        audioSession: AudioSession = AudioSession(),
+        audioSession: any AudioRecording = AudioSession(),
         finalTranscriptionEngine: any FinalTranscriptionEngine = ColiTranscriber(),
         transcriptEditPanel: TranscriptEditPanelController = TranscriptEditPanelController(),
         configManager: any ConfigManaging = ConfigManager.shared,
-        polisher: LLMPolisher = .shared
+        polisher: any TextPolishing = LLMPolisher.shared
     ) {
         self.capsulePanel = capsulePanel
         self.audioSession = audioSession

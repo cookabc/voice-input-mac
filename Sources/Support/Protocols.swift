@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 
 @MainActor
@@ -22,5 +23,29 @@ protocol PromptManaging: AnyObject {
     func seedDefaultsIfNeeded()
 }
 
+// MARK: - Audio Recording
+
+/// Protocol for audio capture — extracted from `AudioSession` for testability.
+/// Inspired by LuckyTrans's `ServiceProtocols.swift` pattern.
+protocol AudioRecording: AnyObject {
+    var isRecording: Bool { get }
+    var recordingPath: String { get }
+    var recordingFormat: AVAudioFormat { get }
+    var bufferSink: ((AVAudioPCMBuffer, AVAudioTime) -> Void)? { get set }
+    var levelSink: ((Float) -> Void)? { get set }
+
+    func startRecording() throws -> String
+    func stopRecording()
+}
+
+// MARK: - Text Polishing
+
+/// Protocol for LLM text polish — extracted from `LLMPolisher` actor.
+protocol TextPolishing: Sendable {
+    func polish(text: String, dictionary: [String]) async throws -> String
+}
+
 extension ConfigManager: ConfigManaging {}
 extension PromptManager: PromptManaging {}
+extension AudioSession: AudioRecording {}
+extension LLMPolisher: TextPolishing {}
