@@ -411,6 +411,12 @@ private struct SpeechModelsPage: View {
 
 private struct LLMAPIPage: View {
     @Bindable var model: SettingsModel
+    @FocusState private var focusedField: LLMField?
+    @State private var autoSaveTask: Task<Void, Never>?
+
+    private enum LLMField: Hashable {
+        case baseURL, apiKey, modelName
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -425,6 +431,7 @@ private struct LLMAPIPage: View {
                         .frame(width: 80, alignment: .leading)
                     TextField("https://api.openai.com/v1", text: $model.baseURL)
                         .textFieldStyle(.roundedBorder)
+                        .focused($focusedField, equals: .baseURL)
                 }
 
                 CardRow(showDivider: true) {
@@ -432,6 +439,7 @@ private struct LLMAPIPage: View {
                         .frame(width: 80, alignment: .leading)
                     SecureField("sk-…", text: $model.apiKey)
                         .textFieldStyle(.roundedBorder)
+                        .focused($focusedField, equals: .apiKey)
                 }
 
                 CardRow(showDivider: false) {
@@ -439,6 +447,7 @@ private struct LLMAPIPage: View {
                         .frame(width: 80, alignment: .leading)
                     TextField("gpt-4o-mini", text: $model.model)
                         .textFieldStyle(.roundedBorder)
+                        .focused($focusedField, equals: .modelName)
                 }
             }
 
@@ -453,6 +462,16 @@ private struct LLMAPIPage: View {
                     Text(model.statusMessage)
                         .font(.caption)
                         .foregroundColor(model.statusMessage.hasPrefix("✓") ? .green : .secondary)
+                }
+            }
+        }
+        .onChange(of: focusedField) { _, newValue in
+            autoSaveTask?.cancel()
+            if newValue == nil {
+                autoSaveTask = Task {
+                    try? await Task.sleep(for: .milliseconds(650))
+                    guard !Task.isCancelled else { return }
+                    model.save()
                 }
             }
         }
