@@ -26,7 +26,7 @@ final class TranscriptEditPanelController: NSObject, NSWindowDelegate {
 
         let hostingController = NSHostingController(rootView: contentView)
         let window = NSWindow(contentViewController: hostingController)
-        window.title = "Review Transcript"
+        window.title = String(localized: "Review Transcript")
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.setContentSize(NSSize(width: 560, height: 360))
         window.minSize = NSSize(width: 480, height: 300)
@@ -76,10 +76,10 @@ private struct TranscriptEditView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Review before inserting")
+                Text(String(localized: "Review before inserting"))
                     .font(.title3.weight(.semibold))
 
-                Text("Edit the transcript, then insert it, copy it, or cancel.")
+                Text(String(localized: "Edit the transcript, then insert it, copy it, or cancel."))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -87,17 +87,19 @@ private struct TranscriptEditView: View {
             TextEditor(text: $draft)
                 .font(.system(size: 14))
                 .inputFieldStyle()
+                .accessibilityIdentifier(AccessibilityID.transcriptEditor)
 
             HStack {
-                Text("Cmd+Return inserts")
+                Text(String(localized: "Cmd+Return inserts"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
                 Spacer()
 
-                Button("Cancel") {
+                Button(String(localized: "Cancel")) {
                     onComplete(.cancel)
                 }
+                .accessibilityIdentifier(AccessibilityID.transcriptCancel)
 
                 Button {
                     guard !copied else { return }
@@ -109,17 +111,19 @@ private struct TranscriptEditView: View {
                     HStack(spacing: 4) {
                         Image(systemName: copied ? "checkmark" : "doc.on.doc")
                             .contentTransition(.symbolEffect(.replace))
-                        Text(copied ? "Copied" : "Copy")
+                        Text(copied ? String(localized: "Copied") : String(localized: "Copy"))
                     }
                     .foregroundStyle(copied ? .green : .primary)
                 }
                 .disabled(trimmedDraft.isEmpty)
+                .accessibilityIdentifier(AccessibilityID.transcriptCopy)
 
-                Button("Insert") {
+                Button(String(localized: "Insert")) {
                     onComplete(.insert(trimmedDraft))
                 }
                 .keyboardShortcut(.return, modifiers: [.command])
                 .disabled(trimmedDraft.isEmpty)
+                .accessibilityIdentifier(AccessibilityID.transcriptInsert)
             }
         }
         .padding(20)

@@ -13,6 +13,7 @@ final class SettingsModel {
     var isTesting: Bool = false
     var hotkeyDisplay: String = "⌥Space"
     var isRecordingHotkey: Bool = false
+    var appTheme: AppTheme = AppTheme.current()
     let modelManager: ModelManager
 
     @ObservationIgnored
@@ -65,14 +66,14 @@ final class SettingsModel {
             apiKey: apiKey
         )
         configManager.saveEditBeforePaste(editBeforePaste)
-        statusMessage = saved ? "✓ Saved" : "✗ Saved config, but failed to store API key in Keychain"
+        statusMessage = saved ? String(localized: "✓ Saved") : String(localized: "✗ Saved config, but failed to store API key in Keychain")
         return saved
     }
 
     func testConnection() {
         guard save() else { return }
         isTesting = true
-        statusMessage = "Testing…"
+        statusMessage = String(localized: "Testing…")
 
         Task {
             let probe = await polisher.runtimeProbe()
@@ -95,6 +96,11 @@ final class SettingsModel {
     func selectSpeechModel(_ identifier: SpeechModelIdentifier) {
         modelManager.selectModel(identifier)
         refreshSpeechRuntime()
+    }
+
+    func updateTheme(_ theme: AppTheme) {
+        appTheme = theme
+        AppTheme.apply(theme)
     }
 
     func installSpeechModel(_ identifier: SpeechModelIdentifier) async {

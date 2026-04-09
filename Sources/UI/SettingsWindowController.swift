@@ -38,7 +38,7 @@ final class SettingsWindowController {
         )
 
         let win = NSWindow(contentViewController: hostingController)
-        win.title = "Murmur Settings"
+        win.title = String(localized: "Murmur Settings")
         win.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         win.setContentSize(NSSize(width: 720, height: 520))
         win.minSize = NSSize(width: 640, height: 460)
@@ -61,8 +61,20 @@ private enum SettingsPage: String, CaseIterable, Identifiable {
     case speechModels = "Speech Models"
     case hotkey = "Hotkey"
     case workflow = "Workflow"
+    case appearance = "Appearance"
 
     var id: String { rawValue }
+
+    var localizedName: String {
+        switch self {
+        case .llmAPI:        String(localized: "LLM API")
+        case .speechRuntime: String(localized: "Speech Runtime")
+        case .speechModels:  String(localized: "Speech Models")
+        case .hotkey:        String(localized: "Hotkey")
+        case .workflow:      String(localized: "Workflow")
+        case .appearance:    String(localized: "Appearance")
+        }
+    }
 
     var icon: String {
         switch self {
@@ -71,6 +83,7 @@ private enum SettingsPage: String, CaseIterable, Identifiable {
         case .speechModels:  "arrow.down.circle"
         case .hotkey:        "keyboard"
         case .workflow:      "gearshape.2"
+        case .appearance:    "paintpalette"
         }
     }
 }
@@ -84,7 +97,7 @@ private struct SettingsContentView: View {
     var body: some View {
         NavigationSplitView {
             List(SettingsPage.allCases, selection: $selectedPage) { page in
-                Label(page.rawValue, systemImage: page.icon)
+                Label(page.localizedName, systemImage: page.icon)
                     .tag(page)
             }
             .listStyle(.sidebar)
@@ -108,6 +121,7 @@ private struct SettingsContentView: View {
         case .speechModels:  SpeechModelsPage(model: model)
         case .llmAPI:        LLMAPIPage(model: model)
         case .workflow:      WorkflowPage(model: model)
+        case .appearance:    AppearancePage(model: model)
         }
     }
 }
@@ -172,13 +186,13 @@ private struct HotkeyPage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             PageHeader(
-                title: "Hotkey",
-                subtitle: "Use a keyboard shortcut as an alternative to holding the Fn key."
+                title: String(localized: "Hotkey"),
+                subtitle: String(localized: "Use a keyboard shortcut as an alternative to holding the Fn key.")
             )
 
             SettingsCard {
                 CardRow(showDivider: false) {
-                    Text("Shortcut")
+                    Text(String(localized: "Shortcut"))
                         .frame(width: 80, alignment: .leading)
 
                     ZStack {
@@ -209,7 +223,7 @@ private struct HotkeyPage: View {
 
                     Spacer()
 
-                    Button("Reset") {
+                    Button(String(localized: "Reset")) {
                         model.resetHotkey()
                     }
                     .controlSize(.small)
@@ -227,38 +241,38 @@ private struct SpeechRuntimePage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             PageHeader(
-                title: "Speech Runtime",
-                subtitle: "Current final-transcription engine status."
+                title: String(localized: "Speech Runtime"),
+                subtitle: String(localized: "Current final-transcription engine status.")
             )
 
             SettingsCard {
-                runtimeRow(label: "Status", value: model.speechRuntime.summaryLine,
+                runtimeRow(label: String(localized: "Status"), value: model.speechRuntime.summaryLine,
                            color: model.speechRuntime.isHelperAvailable ? .green : .red, showDivider: true)
-                runtimeRow(label: "Provider", value: model.speechRuntime.providerIdentifier, showDivider: true)
+                runtimeRow(label: String(localized: "Provider"), value: model.speechRuntime.providerIdentifier, showDivider: true)
 
                 if let modelName = model.speechRuntime.modelName {
-                    runtimeRow(label: "Model", value: modelName, showDivider: true)
+                    runtimeRow(label: String(localized: "Model"), value: modelName, showDivider: true)
                 }
 
-                runtimeRow(label: "Model Status", value: model.speechRuntime.modelStatusLine,
+                runtimeRow(label: String(localized: "Model Status"), value: model.speechRuntime.modelStatusLine,
                            color: model.speechRuntime.isModelAvailable ? .green : .red, showDivider: true)
-                runtimeRow(label: "Helper", value: model.speechRuntime.helperStatusLine,
+                runtimeRow(label: String(localized: "Helper"), value: model.speechRuntime.helperStatusLine,
                            color: model.speechRuntime.isHelperAvailable ? .green : .red, showDivider: true)
-                runtimeRow(label: "Origin", value: model.speechRuntime.helperOriginLine, showDivider: true)
-                runtimeRow(label: "Path", value: model.speechRuntime.helperPath, mono: true, showDivider: true)
-                runtimeRow(label: "Support", value: model.speechRuntime.supportDirectoryPath, mono: true, showDivider: true)
-                runtimeRow(label: "Config", value: model.speechRuntime.configFilePath, mono: true, showDivider: false)
+                runtimeRow(label: String(localized: "Origin"), value: model.speechRuntime.helperOriginLine, showDivider: true)
+                runtimeRow(label: String(localized: "Path"), value: model.speechRuntime.helperPath, mono: true, showDivider: true)
+                runtimeRow(label: String(localized: "Support"), value: model.speechRuntime.supportDirectoryPath, mono: true, showDivider: true)
+                runtimeRow(label: String(localized: "Config"), value: model.speechRuntime.configFilePath, mono: true, showDivider: false)
             }
 
             HStack(spacing: 12) {
-                Button("Refresh Runtime") { model.refreshSpeechRuntime() }
+                Button(String(localized: "Refresh Runtime")) { model.refreshSpeechRuntime() }
 
-                Button("Reveal Helper") {
+                Button(String(localized: "Reveal Helper")) {
                     model.revealInFinder(path: model.speechRuntime.helperPath)
                 }
                 .disabled(!FileManager.default.fileExists(atPath: model.speechRuntime.helperPath))
 
-                Button("Reveal Support Files") {
+                Button(String(localized: "Reveal Support Files")) {
                     model.revealInFinder(path: model.speechRuntime.supportDirectoryPath)
                 }
             }
@@ -294,8 +308,8 @@ private struct SpeechModelsPage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             PageHeader(
-                title: "Speech Models",
-                subtitle: "Manage local ASR models for the final transcription pass."
+                title: String(localized: "Speech Models"),
+                subtitle: String(localized: "Manage local ASR models for the final transcription pass.")
             )
 
             ForEach(model.modelManager.models) { speechModel in
@@ -313,7 +327,7 @@ private struct SpeechModelsPage: View {
                     }
 
                     CardRow(showDivider: true) {
-                        Text("Languages")
+                        Text(String(localized: "Languages"))
                             .foregroundStyle(.secondary)
                         Spacer()
                         Text(speechModel.supportedLanguages)
@@ -321,7 +335,7 @@ private struct SpeechModelsPage: View {
                     }
 
                     CardRow(showDivider: true) {
-                        Text("Location")
+                        Text(String(localized: "Location"))
                             .foregroundStyle(.secondary)
                         Spacer()
                         Text(speechModel.installPath)
@@ -342,7 +356,7 @@ private struct SpeechModelsPage: View {
                 SettingsCard {
                     CardRow(showDivider: false) {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Installing \(activeDownload.displayName)…")
+                            Text(String(localized: "Installing \(activeDownload.displayName)…"))
                                 .font(.caption.weight(.semibold))
                             if let progress = model.modelManager.downloadProgress {
                                 ProgressView(value: progress)
@@ -361,7 +375,7 @@ private struct SpeechModelsPage: View {
                     .foregroundStyle(.secondary)
             }
 
-            Button("Reveal Models Folder") {
+            Button(String(localized: "Reveal Models Folder")) {
                 model.revealInFinder(path: model.modelManager.modelsDirectoryPath)
             }
         }
@@ -370,15 +384,15 @@ private struct SpeechModelsPage: View {
     @ViewBuilder
     private func modelBadge(for speechModel: SpeechModelState) -> some View {
         if speechModel.isSelected {
-            Label("Current", systemImage: "checkmark.circle.fill")
+            Label(String(localized: "Current"), systemImage: "checkmark.circle.fill")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.green)
         } else if speechModel.isInstalled {
-            Label("Installed", systemImage: "internaldrive.fill")
+            Label(String(localized: "Installed"), systemImage: "internaldrive.fill")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
         } else {
-            Label("Not Installed", systemImage: "arrow.down.circle")
+            Label(String(localized: "Not Installed"), systemImage: "arrow.down.circle")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.orange)
         }
@@ -388,18 +402,18 @@ private struct SpeechModelsPage: View {
     private func modelActions(for speechModel: SpeechModelState) -> some View {
         HStack(spacing: 12) {
             if speechModel.isInstalled {
-                Button(speechModel.isSelected ? "Current Model" : "Use This Model") {
+                Button(speechModel.isSelected ? String(localized: "Current Model") : String(localized: "Use This Model")) {
                     model.selectSpeechModel(speechModel.id)
                 }
                 .disabled(speechModel.isSelected)
             } else {
-                Button(model.modelManager.activeDownloadModel == speechModel.id ? "Installing…" : "Install Model") {
+                Button(model.modelManager.activeDownloadModel == speechModel.id ? String(localized: "Installing\u{2026}") : String(localized: "Install Model")) {
                     Task { await model.installSpeechModel(speechModel.id) }
                 }
                 .disabled(model.modelManager.activeDownloadModel != nil)
             }
 
-            Button("Reveal") {
+            Button(String(localized: "Reveal")) {
                 model.revealInFinder(path: speechModel.installPath)
             }
             .disabled(!speechModel.isInstalled)
@@ -421,13 +435,13 @@ private struct LLMAPIPage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             PageHeader(
-                title: "LLM API",
-                subtitle: "Configure the language model used for text refinement."
+                title: String(localized: "LLM API"),
+                subtitle: String(localized: "Configure the language model used for text refinement.")
             )
 
             SettingsCard {
                 CardRow(showDivider: true) {
-                    Text("Base URL")
+                    Text(String(localized: "Base URL"))
                         .frame(width: 80, alignment: .leading)
                     TextField("https://api.openai.com/v1", text: $model.baseURL)
                         .textFieldStyle(.roundedBorder)
@@ -435,7 +449,7 @@ private struct LLMAPIPage: View {
                 }
 
                 CardRow(showDivider: true) {
-                    Text("API Key")
+                    Text(String(localized: "API Key"))
                         .frame(width: 80, alignment: .leading)
                     SecureField("sk-…", text: $model.apiKey)
                         .textFieldStyle(.roundedBorder)
@@ -443,7 +457,7 @@ private struct LLMAPIPage: View {
                 }
 
                 CardRow(showDivider: false) {
-                    Text("Model")
+                    Text(String(localized: "Model"))
                         .frame(width: 80, alignment: .leading)
                     TextField("gpt-4o-mini", text: $model.model)
                         .textFieldStyle(.roundedBorder)
@@ -452,11 +466,13 @@ private struct LLMAPIPage: View {
             }
 
             HStack(spacing: 12) {
-                Button("Test Connection") { model.testConnection() }
+                Button(String(localized: "Test Connection")) { model.testConnection() }
                     .disabled(model.isTesting)
+                    .accessibilityIdentifier(AccessibilityID.settingsTestConnection)
 
-                Button("Save") { model.save() }
+                Button(String(localized: "Save")) { model.save() }
                     .keyboardShortcut(.defaultAction)
+                    .accessibilityIdentifier(AccessibilityID.settingsSave)
 
                 if !model.statusMessage.isEmpty {
                     Text(model.statusMessage)
@@ -486,15 +502,15 @@ private struct WorkflowPage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             PageHeader(
-                title: "Workflow",
-                subtitle: "Customize how Murmur inserts transcribed text."
+                title: String(localized: "Workflow"),
+                subtitle: String(localized: "Customize how Murmur inserts transcribed text.")
             )
 
             SettingsCard {
                 CardRow(showDivider: false) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Review Before Paste")
-                        Text("Show a review window before inserting text into the active app.")
+                        Text(String(localized: "Review Before Paste"))
+                        Text(String(localized: "Show a review window before inserting text into the active app."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -505,6 +521,38 @@ private struct WorkflowPage: View {
                     ))
                         .labelsHidden()
                         .toggleStyle(.switch)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - 6. Appearance Page
+
+private struct AppearancePage: View {
+    @Bindable var model: SettingsModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            PageHeader(
+                title: String(localized: "Appearance"),
+                subtitle: String(localized: "Choose the look and feel of Murmur.")
+            )
+
+            SettingsCard {
+                CardRow(showDivider: false) {
+                    Text(String(localized: "Theme"))
+                        .frame(width: 80, alignment: .leading)
+                    Picker("", selection: Binding(
+                        get: { model.appTheme },
+                        set: { model.updateTheme($0) }
+                    )) {
+                        ForEach(AppTheme.allCases, id: \.self) { theme in
+                            Text(theme.displayName).tag(theme)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
                 }
             }
         }

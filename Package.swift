@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "Murmur",
+    defaultLocalization: "en",
     platforms: [
         .macOS(.v26),
     ],

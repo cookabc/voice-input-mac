@@ -56,7 +56,7 @@ final class MenuBarController {
 
     var labelAccessibilityDescription: String {
         if hasAccessibilityWarning {
-            return "Murmur - Accessibility permission required"
+            return String(localized: "Murmur - Accessibility permission required")
         }
         return phase.menuBarAccessibilityLabel
     }
@@ -145,11 +145,11 @@ struct MurmurMenuBarExtraContent: View {
             // ── Accessibility warning ──────────────────────────────
             if menuBar.hasAccessibilityWarning {
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("Accessibility permission required", systemImage: "exclamationmark.triangle.fill")
+                    Label(String(localized: "Accessibility permission required"), systemImage: "exclamationmark.triangle.fill")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.orange)
 
-                    Text("Request access, then enable Murmur in System Settings for Fn monitoring and auto-paste.")
+                    Text(String(localized: "Request access, then enable Murmur in System Settings for Fn monitoring and auto-paste."))
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -157,7 +157,7 @@ struct MurmurMenuBarExtraContent: View {
                     Button {
                         menuBar.requestAccessibilityAccess()
                     } label: {
-                        Label("Grant Accessibility Access", systemImage: "arrow.up.right.square")
+                        Label(String(localized: "Grant Accessibility Access"), systemImage: "arrow.up.right.square")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
@@ -189,7 +189,7 @@ struct MurmurMenuBarExtraContent: View {
                 Spacer(minLength: 0)
             }
 
-            Text("Hold Fn to dictate · ⌥Space to toggle · Esc to cancel")
+            Text(String(localized: "Hold Fn to dictate · ⌥Space to toggle · Esc to cancel"))
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.tertiary)
 
@@ -200,7 +200,7 @@ struct MurmurMenuBarExtraContent: View {
                     Image(systemName: "globe")
                         .frame(width: 18)
                         .foregroundStyle(.secondary)
-                    Text("Language")
+                    Text(String(localized: "Language"))
                     Spacer(minLength: 8)
                     Picker("", selection: Binding(
                         get: { menuBar.selectedLocale },
@@ -212,6 +212,7 @@ struct MurmurMenuBarExtraContent: View {
                     }
                     .labelsHidden()
                     .fixedSize()
+                    .accessibilityIdentifier(AccessibilityID.menuBarLanguagePicker)
                 }
 
                 Divider().padding(.leading, 40)
@@ -221,7 +222,7 @@ struct MurmurMenuBarExtraContent: View {
                     Image(systemName: "sparkles")
                         .frame(width: 18)
                         .foregroundStyle(.secondary)
-                    Text("LLM Refinement")
+                    Text(String(localized: "LLM Refinement"))
                     Spacer(minLength: 8)
                     Toggle("", isOn: Binding(
                         get: { menuBar.llmEnabled },
@@ -230,6 +231,7 @@ struct MurmurMenuBarExtraContent: View {
                     .labelsHidden()
                     .toggleStyle(.switch)
                     .controlSize(.mini)
+                    .accessibilityIdentifier(AccessibilityID.menuBarLLMToggle)
                 }
 
                 Divider().padding(.leading, 40)
@@ -239,7 +241,7 @@ struct MurmurMenuBarExtraContent: View {
                     Image(systemName: "pencil.and.list.clipboard")
                         .frame(width: 18)
                         .foregroundStyle(.secondary)
-                    Text("Review Before Paste")
+                    Text(String(localized: "Review Before Paste"))
                     Spacer(minLength: 8)
                     Toggle("", isOn: Binding(
                         get: { menuBar.editBeforePaste },
@@ -248,6 +250,7 @@ struct MurmurMenuBarExtraContent: View {
                     .labelsHidden()
                     .toggleStyle(.switch)
                     .controlSize(.mini)
+                    .accessibilityIdentifier(AccessibilityID.menuBarEditToggle)
                 }
             }
             .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -258,7 +261,7 @@ struct MurmurMenuBarExtraContent: View {
                     Image(systemName: "gearshape")
                         .frame(width: 18)
                         .foregroundStyle(.secondary)
-                    Button("Settings…") {
+                    Button(String(localized: "Settings…")) {
                         menuBar.openSettings()
                     }
                     .buttonStyle(.plain)
@@ -275,7 +278,7 @@ struct MurmurMenuBarExtraContent: View {
                     Image(systemName: "power")
                         .frame(width: 18)
                         .foregroundStyle(.secondary)
-                    Button("Quit Murmur") {
+                    Button(String(localized: "Quit Murmur")) {
                         menuBar.quitApp()
                     }
                     .buttonStyle(.plain)

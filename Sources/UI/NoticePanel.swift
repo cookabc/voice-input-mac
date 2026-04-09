@@ -171,6 +171,7 @@ private struct NoticePanelView: View {
                         .padding(8)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier(AccessibilityID.noticeDismiss)
             }
 
             HStack {
@@ -179,6 +180,7 @@ private struct NoticePanelView: View {
                         secondaryAction.handler()
                         onDismiss()
                     }
+                    .accessibilityIdentifier(AccessibilityID.noticeSecondaryAction)
                 }
 
                 Spacer()
@@ -188,6 +190,7 @@ private struct NoticePanelView: View {
                     onDismiss()
                 }
                 .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier(AccessibilityID.noticePrimaryAction)
             }
         }
         .padding(20)

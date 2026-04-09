@@ -85,6 +85,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        AppTheme.apply(AppTheme.current())
 
         if let launchIssue = LaunchConfigurationValidator.validate() {
             MurmurLogger.app.error("\(launchIssue.logMessage, privacy: .public)")
@@ -252,11 +253,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             self?.noticePanel.show(
-                title: "Welcome to Murmur",
-                message: "Hold Fn to dictate (release to finish), or press ⌥Space to toggle. Esc cancels.",
+                title: String(localized: "Welcome to Murmur"),
+                message: String(localized: "Hold Fn to dictate (release to finish), or press ⌥Space to toggle. Esc cancels."),
                 style: .info,
-                primaryAction: NoticePanelAction(title: "Got it", role: nil) {},
-                secondaryAction: NoticePanelAction(title: "Open Settings", role: nil) { [weak self] in
+                primaryAction: NoticePanelAction(title: String(localized: "Got it"), role: nil) {},
+                secondaryAction: NoticePanelAction(title: String(localized: "Open Settings"), role: nil) { [weak self] in
                     self?.settingsController.showSettings()
                 }
             )
