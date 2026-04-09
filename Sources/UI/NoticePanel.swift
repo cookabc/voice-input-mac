@@ -7,6 +7,39 @@ struct NoticePanelAction {
     let handler: @MainActor () -> Void
 }
 
+extension NoticePanelAction {
+    /// Deep-link to a specific Privacy pane in System Settings.
+    static func openPrivacySettings(_ pane: PrivacyPane) -> NoticePanelAction {
+        NoticePanelAction(title: "Open System Settings", role: nil) {
+            if let url = URL(string: pane.urlString) {
+                NSWorkspace.shared.open(url)
+            }
+        }
+    }
+
+    /// Dismiss-only action.
+    static func dismiss(title: String = "Dismiss") -> NoticePanelAction {
+        NoticePanelAction(title: title, role: .cancel) { }
+    }
+
+    enum PrivacyPane {
+        case accessibility
+        case microphone
+        case speechRecognition
+
+        var urlString: String {
+            switch self {
+            case .accessibility:
+                "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+            case .microphone:
+                "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
+            case .speechRecognition:
+                "x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition"
+            }
+        }
+    }
+}
+
 enum NoticePanelStyle {
     case info
     case warning

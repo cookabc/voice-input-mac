@@ -123,7 +123,7 @@ final class MenuBarController {
             TextInsertionService.promptAccessibility()
         }
 
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+        if let url = URL(string: NoticePanelAction.PrivacyPane.accessibility.urlString) {
             NSWorkspace.shared.open(url)
         }
     }
@@ -299,6 +299,7 @@ struct MurmurMenuBarExtraContent: View {
 
 /// Justified row: icon + label on the left, control on the right.
 private struct MenuBarRow<Content: View>: View {
+    @State private var isHovered = false
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -307,6 +308,15 @@ private struct MenuBarRow<Content: View>: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .contentShape(Rectangle())
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(isHovered ? Color.primary.opacity(0.06) : .clear)
+                .padding(.horizontal, 4)
+        )
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
 }
             

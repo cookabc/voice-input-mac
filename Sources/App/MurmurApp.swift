@@ -211,7 +211,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             style: .warning,
             primaryAction: NoticePanelAction(title: "Quit Murmur", role: .destructive) {
                 NSApp.terminate(nil)
-            }
+            },
+            secondaryAction: .dismiss()
         )
     }
 
