@@ -60,6 +60,7 @@ final class TranscriptEditPanelController: NSObject, NSWindowDelegate {
 
 private struct TranscriptEditView: View {
     @State private var draft: String
+    @State private var copied = false
 
     let onComplete: (TranscriptEditAction) -> Void
 
@@ -98,8 +99,19 @@ private struct TranscriptEditView: View {
                     onComplete(.cancel)
                 }
 
-                Button("Copy") {
-                    onComplete(.copy(trimmedDraft))
+                Button {
+                    guard !copied else { return }
+                    withAnimation(.easeInOut(duration: 0.15)) { copied = true }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        onComplete(.copy(trimmedDraft))
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                            .contentTransition(.symbolEffect(.replace))
+                        Text(copied ? "Copied" : "Copy")
+                    }
+                    .foregroundStyle(copied ? .green : .primary)
                 }
                 .disabled(trimmedDraft.isEmpty)
 
