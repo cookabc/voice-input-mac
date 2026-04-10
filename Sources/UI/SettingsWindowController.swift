@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Standalone settings window for LLM API configuration + hotkey.
 @MainActor
-final class SettingsWindowController {
+final class SettingsWindowController: NSObject, NSToolbarDelegate {
 
     private var window: NSWindow?
     private let configManager: any ConfigManaging
@@ -18,6 +18,25 @@ final class SettingsWindowController {
     ) {
         self.configManager = configManager
         self.polisher = polisher
+        super.init()
+    }
+
+    // MARK: - NSToolbarDelegate
+
+    nonisolated func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [.toggleSidebar, .flexibleSpace]
+    }
+
+    nonisolated func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [.toggleSidebar, .flexibleSpace]
+    }
+
+    nonisolated func toolbar(
+        _ toolbar: NSToolbar,
+        itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
+        willBeInsertedIntoToolbar flag: Bool
+    ) -> NSToolbarItem? {
+        nil // System provides .toggleSidebar automatically
     }
 
     func showSettings() {
@@ -45,10 +64,12 @@ final class SettingsWindowController {
         win.center()
         win.isReleasedWhenClosed = false
 
-        // Add toolbar so NavigationSplitView sidebar toggle appears (matches LT Settings scene)
+        // Toolbar with sidebar toggle — matches SwiftUI Settings scene behavior
         let toolbar = NSToolbar(identifier: "MurmurSettings")
         toolbar.displayMode = .iconOnly
+        toolbar.delegate = self
         win.toolbar = toolbar
+        win.toolbarStyle = .automatic
 
         window = win
         win.makeKeyAndOrderFront(nil)
