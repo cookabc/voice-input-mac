@@ -8,20 +8,12 @@ import SwiftUI
 extension View {
     /// Glass panel background — `regularMaterial` with a rounded stroke and drop shadow.
     /// Used by NoticePanel and similar floating panels.
+    /// Falls back to a solid background when Reduce Transparency is enabled.
     func panelBackground(
         cornerRadius: CGFloat = MurmurDesignTokens.Radius.large + 6,
         strokeOpacity: Double = MurmurDesignTokens.Opacity.medium
     ) -> some View {
-        self
-            .background {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(.regularMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .stroke(Color.white.opacity(strokeOpacity), lineWidth: MurmurDesignTokens.Border.regular)
-                    )
-            }
-            .shadow(color: MurmurDesignTokens.Shadow.medium, radius: 16, y: 8)
+        self.modifier(PanelBackgroundModifier(cornerRadius: cornerRadius, strokeOpacity: strokeOpacity))
     }
 
     /// Settings card style — `controlBackgroundColor` background with a thin border.
@@ -63,5 +55,24 @@ extension View {
         } else {
             self
         }
+    }
+}
+
+private struct PanelBackgroundModifier: ViewModifier {
+    let cornerRadius: CGFloat
+    let strokeOpacity: Double
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(reduceTransparency ? AnyShapeStyle(Color(nsColor: .windowBackgroundColor)) : AnyShapeStyle(.regularMaterial))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .stroke(Color.white.opacity(strokeOpacity), lineWidth: MurmurDesignTokens.Border.regular)
+                    )
+            }
+            .shadow(color: MurmurDesignTokens.Shadow.medium, radius: 16, y: 8)
     }
 }

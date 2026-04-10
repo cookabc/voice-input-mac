@@ -49,7 +49,7 @@ final class MenuBarController {
 
     var labelTintColor: Color {
         if hasAccessibilityWarning {
-            return .orange
+            return MurmurDesignTokens.Colors.warning
         }
         return phase.menuBarTint
     }
@@ -147,7 +147,7 @@ struct MurmurMenuBarExtraContent: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Label(String(localized: "Accessibility permission required"), systemImage: "exclamationmark.triangle.fill")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(MurmurDesignTokens.Colors.warning)
 
                     Text(String(localized: "Request access, then enable Murmur in System Settings for Fn monitoring and auto-paste."))
                         .font(.system(size: 11, weight: .medium))
@@ -165,7 +165,7 @@ struct MurmurMenuBarExtraContent: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(10)
-                .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .background(MurmurDesignTokens.Colors.warning.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
 
             // ── Status header ─────────────────────────────────────

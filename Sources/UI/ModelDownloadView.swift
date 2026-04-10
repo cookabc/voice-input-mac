@@ -26,7 +26,7 @@ struct ModelDownloadView: View {
                         if speechModel.isSelected {
                             Label("Current", systemImage: "checkmark.circle.fill")
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(.green)
+                                .foregroundStyle(MurmurDesignTokens.Colors.success)
                         } else if speechModel.isInstalled {
                             Label("Installed", systemImage: "internaldrive.fill")
                                 .font(.caption.weight(.semibold))
@@ -34,7 +34,7 @@ struct ModelDownloadView: View {
                         } else {
                             Label("Not Installed", systemImage: "arrow.down.circle")
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(MurmurDesignTokens.Colors.warning)
                         }
                     }
 

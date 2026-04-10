@@ -14,6 +14,7 @@ final class CapsuleViewModel {
 
 struct CapsuleView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var viewModel: CapsuleViewModel
 
@@ -47,7 +48,7 @@ struct CapsuleView: View {
 
                 // Layer 2: frosted glass material
                 Capsule(style: .continuous)
-                    .fill(.ultraThinMaterial)
+                    .fill(reduceTransparency ? AnyShapeStyle(Color(nsColor: .windowBackgroundColor)) : AnyShapeStyle(.ultraThinMaterial))
 
                 // Layer 3: gradient border
                 Capsule(style: .continuous)

@@ -31,7 +31,8 @@ final class TranscriptEditPanelController: NSObject, NSWindowDelegate {
         window.setContentSize(NSSize(width: 560, height: 360))
         window.minSize = NSSize(width: 480, height: 300)
         window.isReleasedWhenClosed = false
-        window.center()
+        window.setFrameAutosaveName("MurmurTranscriptEdit")
+        if window.frame.origin == .zero { window.center() }
         window.delegate = self
 
         self.window = window
@@ -113,10 +114,11 @@ private struct TranscriptEditView: View {
                             .contentTransition(.symbolEffect(.replace))
                         Text(copied ? String(localized: "Copied") : String(localized: "Copy"))
                     }
-                    .foregroundStyle(copied ? .green : .primary)
+                    .foregroundStyle(copied ? MurmurDesignTokens.Colors.success : .primary)
                 }
                 .disabled(trimmedDraft.isEmpty)
                 .accessibilityIdentifier(AccessibilityID.transcriptCopy)
+                .accessibilityLabel(copied ? String(localized: "Copied") : String(localized: "Copy transcript"))
 
                 Button(String(localized: "Insert")) {
                     onComplete(.insert(trimmedDraft))

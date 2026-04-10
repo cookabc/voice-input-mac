@@ -58,10 +58,11 @@ final class SettingsWindowController: NSObject, NSToolbarDelegate {
 
         let win = NSWindow(contentViewController: hostingController)
         win.title = String(localized: "Murmur Settings")
-        win.styleMask = [.titled, .closable, .resizable]
+        win.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         win.setContentSize(NSSize(width: 560, height: 420))
         win.minSize = NSSize(width: 520, height: 380)
-        win.center()
+        win.setFrameAutosaveName("MurmurSettings")
+        if win.frame.origin == .zero { win.center() }
         win.isReleasedWhenClosed = false
 
         // Toolbar with sidebar toggle — matches SwiftUI Settings scene behavior

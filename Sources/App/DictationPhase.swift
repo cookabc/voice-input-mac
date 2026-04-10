@@ -42,29 +42,29 @@ enum DictationPhase: Equatable {
 
     var capsuleTitle: String {
         switch self {
-        case .idle:              "Ready"
-        case .recording:         "Listening"
-        case .transcribing:      "Transcribing"
-        case .refining:          "Refining"
-        case .editing:           "Editing"
-        case .inserting:         "Inserting"
-        case .completed:         "Done"
-        case .cancelled:         "Cancelled"
-        case .failed:            "Error"
+        case .idle:              String(localized: "Ready")
+        case .recording:         String(localized: "Listening")
+        case .transcribing:      String(localized: "Transcribing")
+        case .refining:          String(localized: "Refining")
+        case .editing:           String(localized: "Editing")
+        case .inserting:         String(localized: "Inserting")
+        case .completed:         String(localized: "Done")
+        case .cancelled:         String(localized: "Cancelled")
+        case .failed:            String(localized: "Error")
         }
     }
 
     var capsuleDetailPlaceholder: String {
         switch self {
         case .idle:              ""
-        case .recording:         "Speak now"
-        case .transcribing:      "Running final speech pass"
-        case .refining:          "Applying correction prompt"
-        case .editing:           "Review your transcript"
-        case .inserting:         "Pasting…"
-        case .completed(let m):  m.isEmpty ? "Transcript inserted" : m
-        case .cancelled(let m):  m.isEmpty ? "Nothing was inserted" : m
-        case .failed(let m):     m.isEmpty ? "Something went wrong" : m
+        case .recording:         String(localized: "Speak now")
+        case .transcribing:      String(localized: "Running final speech pass")
+        case .refining:          String(localized: "Applying correction prompt")
+        case .editing:           String(localized: "Review your transcript")
+        case .inserting:         String(localized: "Pasting…")
+        case .completed(let m):  m.isEmpty ? String(localized: "Transcript inserted") : m
+        case .cancelled(let m):  m.isEmpty ? String(localized: "Nothing was inserted") : m
+        case .failed(let m):     m.isEmpty ? String(localized: "Something went wrong") : m
         }
     }
 
@@ -87,42 +87,42 @@ enum DictationPhase: Equatable {
     var menuBarTint: Color {
         switch self {
         case .idle:          .primary
-        case .recording:     .red
-        case .transcribing:  .blue
-        case .refining:      .purple
-        case .editing:       .teal
-        case .inserting:     .blue
-        case .completed:     .green
-        case .cancelled:     .secondary
-        case .failed:        .yellow
+        case .recording:     MurmurDesignTokens.Capsule.recordingTint
+        case .transcribing:  MurmurDesignTokens.Capsule.transcribingTint
+        case .refining:      MurmurDesignTokens.Capsule.refiningTint
+        case .editing:       MurmurDesignTokens.Capsule.editingTint
+        case .inserting:     MurmurDesignTokens.Capsule.insertingTint
+        case .completed:     MurmurDesignTokens.Capsule.successTint
+        case .cancelled:     MurmurDesignTokens.Capsule.cancelledTint
+        case .failed:        MurmurDesignTokens.Capsule.errorTint
         }
     }
 
     var menuBarAccessibilityLabel: String {
         switch self {
-        case .idle:              "Murmur"
-        case .recording:         "Murmur - Recording"
-        case .transcribing:      "Murmur - Transcribing"
-        case .refining:          "Murmur - Refining"
-        case .editing:           "Murmur - Reviewing Transcript"
-        case .inserting:         "Murmur - Inserting"
-        case .completed:         "Murmur - Success"
-        case .cancelled:         "Murmur - Cancelled"
-        case .failed:            "Murmur - Error"
+        case .idle:              String(localized: "Murmur")
+        case .recording:         String(localized: "Murmur - Recording")
+        case .transcribing:      String(localized: "Murmur - Transcribing")
+        case .refining:          String(localized: "Murmur - Refining")
+        case .editing:           String(localized: "Murmur - Reviewing Transcript")
+        case .inserting:         String(localized: "Murmur - Inserting")
+        case .completed:         String(localized: "Murmur - Success")
+        case .cancelled:         String(localized: "Murmur - Cancelled")
+        case .failed:            String(localized: "Murmur - Error")
         }
     }
 
     var menuBarStatusLine: String {
         switch self {
-        case .idle:              "Status: Ready"
-        case .recording:         "Status: Recording…"
-        case .transcribing:      "Status: Transcribing…"
-        case .refining:          "Status: Refining…"
-        case .editing:           "Status: Reviewing transcript…"
-        case .inserting:         "Status: Inserting…"
-        case .completed(let m):  "Status: \(m.isEmpty ? "Done" : m)"
-        case .cancelled(let m):  "Status: \(m.isEmpty ? "Cancelled" : m)"
-        case .failed(let m):     "Status: \(m.isEmpty ? "Something went wrong" : m)"
+        case .idle:              String(localized: "Status: Ready")
+        case .recording:         String(localized: "Status: Recording…")
+        case .transcribing:      String(localized: "Status: Transcribing…")
+        case .refining:          String(localized: "Status: Refining…")
+        case .editing:           String(localized: "Status: Reviewing transcript…")
+        case .inserting:         String(localized: "Status: Inserting…")
+        case .completed(let m):  String(localized: "Status: \(m.isEmpty ? String(localized: "Done") : m)")
+        case .cancelled(let m):  String(localized: "Status: \(m.isEmpty ? String(localized: "Cancelled") : m)")
+        case .failed(let m):     String(localized: "Status: \(m.isEmpty ? String(localized: "Something went wrong") : m)")
         }
     }
 }

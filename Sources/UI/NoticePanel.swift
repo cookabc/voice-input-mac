@@ -10,7 +10,7 @@ struct NoticePanelAction {
 extension NoticePanelAction {
     /// Deep-link to a specific Privacy pane in System Settings.
     static func openPrivacySettings(_ pane: PrivacyPane) -> NoticePanelAction {
-        NoticePanelAction(title: "Open System Settings", role: nil) {
+        NoticePanelAction(title: String(localized: "Open System Settings"), role: nil) {
             if let url = URL(string: pane.urlString) {
                 NSWorkspace.shared.open(url)
             }
@@ -18,7 +18,7 @@ extension NoticePanelAction {
     }
 
     /// Dismiss-only action.
-    static func dismiss(title: String = "Dismiss") -> NoticePanelAction {
+    static func dismiss(title: String = String(localized: "Dismiss")) -> NoticePanelAction {
         NoticePanelAction(title: title, role: .cancel) { }
     }
 
@@ -47,9 +47,9 @@ enum NoticePanelStyle {
     var tint: Color {
         switch self {
         case .info:
-            return .blue
+            return MurmurDesignTokens.Colors.accent
         case .warning:
-            return .orange
+            return MurmurDesignTokens.Colors.warning
         }
     }
 
@@ -172,6 +172,7 @@ private struct NoticePanelView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier(AccessibilityID.noticeDismiss)
+                .accessibilityLabel(String(localized: "Dismiss"))
             }
 
             HStack {

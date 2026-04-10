@@ -15,6 +15,14 @@ struct MurmurApp: App {
             MurmurMenuBarExtraLabel(menuBar: appDelegate.menuBar)
         }
         .menuBarExtraStyle(.window)
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button(String(localized: "Settings…")) {
+                    appDelegate.openSettings()
+                }
+                .keyboardShortcut(",")
+            }
+        }
     }
 }
 
@@ -63,6 +71,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.hotkeyManager = HotkeyManager()
 
         super.init()
+    }
+
+    // MARK: - Public API
+
+    func openSettings() {
+        settingsController.showSettings()
     }
 
     // MARK: - Lifecycle
