@@ -268,7 +268,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             self?.noticePanel.show(
                 title: String(localized: "Welcome to Murmur"),
-                message: String(localized: "Hold Fn to dictate (release to finish), or press ⌥Space to toggle. Esc cancels."),
+                message: String(localized: "Hold Fn to dictate (release to finish). Esc cancels."),
                 style: .info,
                 primaryAction: NoticePanelAction(title: String(localized: "Got it"), role: nil) {},
                 secondaryAction: NoticePanelAction(title: String(localized: "Open Settings"), role: nil) { [weak self] in

@@ -189,7 +189,7 @@ struct MurmurMenuBarExtraContent: View {
                 Spacer(minLength: 0)
             }
 
-            Text(String(localized: "Hold Fn to dictate · ⌥Space to toggle · Esc to cancel"))
+            Text(String(localized: "Hold Fn to dictate · Esc to cancel"))
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.tertiary)
 

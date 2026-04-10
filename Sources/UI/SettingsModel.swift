@@ -11,7 +11,7 @@ final class SettingsModel {
     var speechRuntime: SpeechRuntimeStatus = SpeechRuntimeProbe.currentStatus()
     var statusMessage: String = ""
     var isTesting: Bool = false
-    var hotkeyDisplay: String = "⌥Space"
+    var hotkeyDisplay: String = "Fn"
     var isRecordingHotkey: Bool = false
     var appTheme: AppTheme = AppTheme.current()
     let modelManager: ModelManager
@@ -42,7 +42,7 @@ final class SettingsModel {
 
     func setHotkeyManager(_ hotkeyManager: HotkeyManager?) {
         self.hotkeyManager = hotkeyManager
-        hotkeyDisplay = hotkeyManager?.displayString ?? "⌥Space"
+        hotkeyDisplay = hotkeyManager?.displayString ?? "Fn"
     }
 
     func reload() {
@@ -52,7 +52,7 @@ final class SettingsModel {
         editBeforePaste = configManager.editBeforePaste
         modelManager.refresh()
         speechRuntime = SpeechRuntimeProbe.currentStatus(configManager: configManager)
-        hotkeyDisplay = hotkeyManager?.displayString ?? "⌥Space"
+        hotkeyDisplay = hotkeyManager?.displayString ?? "Fn"
         statusMessage = ""
         isTesting = false
         isRecordingHotkey = false
@@ -110,12 +110,12 @@ final class SettingsModel {
 
     func applyHotkey(modifiers: NSEvent.ModifierFlags, keyCode: UInt16) {
         hotkeyManager?.updateShortcut(modifiers: modifiers, keyCode: keyCode)
-        hotkeyDisplay = hotkeyManager?.displayString ?? "⌥Space"
+        hotkeyDisplay = hotkeyManager?.displayString ?? "Fn"
     }
 
     func resetHotkey() {
         hotkeyManager?.resetToDefault()
-        hotkeyDisplay = hotkeyManager?.displayString ?? "⌥Space"
+        hotkeyDisplay = hotkeyManager?.displayString ?? "Fn"
     }
 
     func revealInFinder(path: String) {
