@@ -129,27 +129,27 @@ private struct HotkeyPage: View {
 
     var body: some View {
         Form {
-            Section {
+            Section(String(localized: "Hotkey")) {
                 HStack {
                     Text(String(localized: "Shortcut"))
-                        .frame(width: 80, alignment: .leading)
+                    Spacer()
 
                     ZStack {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
                             .fill(model.isRecordingHotkey
                                   ? Color.accentColor.opacity(0.15)
                                   : Color(nsColor: .controlBackgroundColor))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .stroke(model.isRecordingHotkey ? Color.accentColor : Color.gray.opacity(0.22))
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .stroke(model.isRecordingHotkey ? Color.accentColor : Color(.separatorColor))
                             )
 
-                        Text(model.isRecordingHotkey ? "Press shortcut…" : model.hotkeyDisplay)
-                            .font(.system(size: 13, weight: .semibold))
+                        Text(model.isRecordingHotkey ? String(localized: "Press shortcut…") : model.hotkeyDisplay)
+                            .font(.body)
                             .foregroundStyle(model.isRecordingHotkey ? .secondary : .primary)
                     }
                     .frame(maxWidth: 200, minHeight: 32, maxHeight: 32)
-                    .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     .onTapGesture { model.isRecordingHotkey = true }
                     .background(
                         HotkeyRecorder(
@@ -160,17 +160,15 @@ private struct HotkeyPage: View {
                         )
                     )
 
-                    Spacer()
-
                     Button(String(localized: "Reset")) {
                         model.resetHotkey()
                     }
                     .controlSize(.small)
                 }
-            } header: {
-                Text(String(localized: "Hotkey"))
-            } footer: {
+
                 Text(String(localized: "Use a keyboard shortcut as an alternative to holding the Fn key."))
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
             }
         }
         .formStyle(.grouped)
@@ -184,7 +182,7 @@ private struct SpeechRuntimePage: View {
 
     var body: some View {
         Form {
-            Section {
+            Section(String(localized: "Speech Runtime")) {
                 LabeledContent(String(localized: "Status")) {
                     Text(model.speechRuntime.summaryLine)
                         .foregroundStyle(model.speechRuntime.isHelperAvailable ? .green : .red)
@@ -229,10 +227,12 @@ private struct SpeechRuntimePage: View {
                         .textSelection(.enabled)
                         .multilineTextAlignment(.trailing)
                 }
-            } header: {
-                Text(String(localized: "Speech Runtime"))
-            } footer: {
+            }
+
+            Section {
                 Text(String(localized: "Current final-transcription engine status."))
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
             }
 
             Section {
@@ -369,34 +369,19 @@ private struct LLMAPIPage: View {
 
     var body: some View {
         Form {
-            Section {
-                HStack {
-                    Text(String(localized: "Base URL"))
-                        .frame(width: 80, alignment: .leading)
-                    TextField("https://api.openai.com/v1", text: $model.baseURL)
-                        .textFieldStyle(.roundedBorder)
-                        .focused($focusedField, equals: .baseURL)
-                }
+            Section(String(localized: "LLM API")) {
+                TextField(String(localized: "Base URL"), text: $model.baseURL, prompt: Text("https://api.openai.com/v1"))
+                    .focused($focusedField, equals: .baseURL)
 
-                HStack {
-                    Text(String(localized: "API Key"))
-                        .frame(width: 80, alignment: .leading)
-                    SecureField("sk-…", text: $model.apiKey)
-                        .textFieldStyle(.roundedBorder)
-                        .focused($focusedField, equals: .apiKey)
-                }
+                SecureField(String(localized: "API Key"), text: $model.apiKey, prompt: Text("sk-…"))
+                    .focused($focusedField, equals: .apiKey)
 
-                HStack {
-                    Text(String(localized: "Model"))
-                        .frame(width: 80, alignment: .leading)
-                    TextField("gpt-4o-mini", text: $model.model)
-                        .textFieldStyle(.roundedBorder)
-                        .focused($focusedField, equals: .modelName)
-                }
-            } header: {
-                Text(String(localized: "LLM API"))
-            } footer: {
+                TextField(String(localized: "Model"), text: $model.model, prompt: Text("gpt-4o-mini"))
+                    .focused($focusedField, equals: .modelName)
+
                 Text(String(localized: "Configure the language model used for text refinement."))
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
             }
 
             Section {
@@ -438,22 +423,17 @@ private struct WorkflowPage: View {
 
     var body: some View {
         Form {
-            Section {
+            Section(String(localized: "Workflow")) {
                 Toggle(isOn: Binding(
                     get: { model.editBeforePaste },
                     set: { model.updateEditBeforePaste($0) }
                 )) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(String(localized: "Review Before Paste"))
-                        Text(String(localized: "Show a review window before inserting text into the active app."))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    Text(String(localized: "Review Before Paste"))
                 }
-            } header: {
-                Text(String(localized: "Workflow"))
-            } footer: {
-                Text(String(localized: "Customize how Murmur inserts transcribed text."))
+
+                Text(String(localized: "Show a review window before inserting text into the active app."))
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
             }
         }
         .formStyle(.grouped)
