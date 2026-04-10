@@ -81,34 +81,28 @@ final class SettingsWindowController: NSObject, NSToolbarDelegate {
 // MARK: - Sidebar pages
 
 private enum SettingsPage: String, CaseIterable, Identifiable {
+    case general = "General"
     case llmAPI = "LLM API"
     case speechRuntime = "Speech Runtime"
     case speechModels = "Speech Models"
-    case hotkey = "Hotkey"
-    case workflow = "Workflow"
-    case appearance = "Appearance"
 
     var id: String { rawValue }
 
     var localizedName: String {
         switch self {
+        case .general:       String(localized: "General")
         case .llmAPI:        String(localized: "LLM API")
         case .speechRuntime: String(localized: "Speech Runtime")
         case .speechModels:  String(localized: "Speech Models")
-        case .hotkey:        String(localized: "Hotkey")
-        case .workflow:      String(localized: "Workflow")
-        case .appearance:    String(localized: "Appearance")
         }
     }
 
     var icon: String {
         switch self {
+        case .general:       "gear"
         case .llmAPI:        "network"
         case .speechRuntime: "waveform"
         case .speechModels:  "arrow.down.circle"
-        case .hotkey:        "keyboard"
-        case .workflow:      "gearshape.2"
-        case .appearance:    "paintpalette"
         }
     }
 }
@@ -117,11 +111,11 @@ private enum SettingsPage: String, CaseIterable, Identifiable {
 
 private struct SettingsContentView: View {
     @Bindable var model: SettingsModel
-    @AppStorage("murmurSettingsSelectedPage") private var selectedPageRawValue: String = SettingsPage.llmAPI.rawValue
+    @AppStorage("murmurSettingsSelectedPage") private var selectedPageRawValue: String = SettingsPage.general.rawValue
 
     private var selectedPage: Binding<SettingsPage> {
         Binding(
-            get: { SettingsPage(rawValue: selectedPageRawValue) ?? .llmAPI },
+            get: { SettingsPage(rawValue: selectedPageRawValue) ?? .general },
             set: { selectedPageRawValue = $0.rawValue }
         )
     }
@@ -143,20 +137,18 @@ private struct SettingsContentView: View {
 
     @ViewBuilder
     private var detailContent: some View {
-        switch SettingsPage(rawValue: selectedPageRawValue) ?? .llmAPI {
-        case .hotkey:        HotkeyPage(model: model)
+        switch SettingsPage(rawValue: selectedPageRawValue) ?? .general {
+        case .general:       GeneralPage(model: model)
         case .speechRuntime: SpeechRuntimePage(model: model)
         case .speechModels:  SpeechModelsPage(model: model)
         case .llmAPI:        LLMAPIPage(model: model)
-        case .workflow:      WorkflowPage(model: model)
-        case .appearance:    AppearancePage(model: model)
         }
     }
 }
 
-// MARK: - 1. Hotkey Page
+// MARK: - 1. General Page (Hotkey + Workflow + Theme + About)
 
-private struct HotkeyPage: View {
+private struct GeneralPage: View {
     @Bindable var model: SettingsModel
 
     var body: some View {
@@ -211,6 +203,40 @@ private struct HotkeyPage: View {
                 Text(String(localized: "Use a keyboard shortcut as an alternative to holding the Fn key."))
                     .font(MurmurDesignTokens.Typography.caption)
                     .foregroundStyle(MurmurDesignTokens.Colors.tertiary)
+            }
+
+            Section(String(localized: "Workflow")) {
+                Toggle(isOn: Binding(
+                    get: { model.editBeforePaste },
+                    set: { model.updateEditBeforePaste($0) }
+                )) {
+                    Text(String(localized: "Review Before Paste"))
+                }
+
+                Text(String(localized: "Show a review window before inserting text into the active app."))
+                    .font(MurmurDesignTokens.Typography.caption)
+                    .foregroundStyle(MurmurDesignTokens.Colors.tertiary)
+            }
+
+            Section(String(localized: "Theme")) {
+                Picker(String(localized: "Appearance"), selection: Binding(
+                    get: { model.appTheme },
+                    set: { model.updateTheme($0) }
+                )) {
+                    ForEach(AppTheme.allCases, id: \.self) { theme in
+                        Text(theme.displayName).tag(theme)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+
+            Section(String(localized: "About")) {
+                LabeledContent(String(localized: "Version")) {
+                    Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
+                }
+                LabeledContent(String(localized: "Build")) {
+                    Text(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1")
+                }
             }
         }
         .formStyle(.grouped)
@@ -455,62 +481,6 @@ private struct LLMAPIPage: View {
                 }
             }
         }
-    }
-}
-
-// MARK: - 5. Workflow Page
-
-private struct WorkflowPage: View {
-    @Bindable var model: SettingsModel
-
-    var body: some View {
-        Form {
-            Section(String(localized: "Workflow")) {
-                Toggle(isOn: Binding(
-                    get: { model.editBeforePaste },
-                    set: { model.updateEditBeforePaste($0) }
-                )) {
-                    Text(String(localized: "Review Before Paste"))
-                }
-
-                Text(String(localized: "Show a review window before inserting text into the active app."))
-                    .font(MurmurDesignTokens.Typography.caption)
-                    .foregroundStyle(MurmurDesignTokens.Colors.tertiary)
-            }
-        }
-        .formStyle(.grouped)
-    }
-}
-
-// MARK: - 6. Appearance Page
-
-private struct AppearancePage: View {
-    @Bindable var model: SettingsModel
-
-    var body: some View {
-        Form {
-            Section(String(localized: "Theme")) {
-                Picker(String(localized: "Appearance"), selection: Binding(
-                    get: { model.appTheme },
-                    set: { model.updateTheme($0) }
-                )) {
-                    ForEach(AppTheme.allCases, id: \.self) { theme in
-                        Text(theme.displayName).tag(theme)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
-
-            Section(String(localized: "About")) {
-                LabeledContent(String(localized: "Version")) {
-                    Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
-                }
-                LabeledContent(String(localized: "Build")) {
-                    Text(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1")
-                }
-            }
-        }
-        .formStyle(.grouped)
     }
 }
 
