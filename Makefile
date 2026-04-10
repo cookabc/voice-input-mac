@@ -29,7 +29,7 @@ install: stage
 	@sleep 0.3
 	rm -rf /Applications/$(APP_NAME).app
 	cp -R "$(STAGE)" /Applications/$(APP_NAME).app
-	codesign --force --deep --sign - /Applications/$(APP_NAME).app
+	codesign --force --deep --sign - --entitlements Murmur.entitlements /Applications/$(APP_NAME).app
 	@echo "Installed → /Applications/$(APP_NAME).app"
 
 # ── Clean ──────────────────────────────────────────────────────────────────────

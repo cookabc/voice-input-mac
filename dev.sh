@@ -58,6 +58,10 @@ if [[ -f "$ROOT_DIR/Resources/Murmur.icns" ]]; then
   cp "$ROOT_DIR/Resources/Murmur.icns" "$RESOURCES_DIR/Murmur.icns"
 fi
 
+if [[ -f "$ROOT_DIR/Resources/PrivacyInfo.xcprivacy" ]]; then
+  cp "$ROOT_DIR/Resources/PrivacyInfo.xcprivacy" "$RESOURCES_DIR/PrivacyInfo.xcprivacy"
+fi
+
 # Resolve coli's real path (through symlinks) to find the package root.
 COLI_REAL="$(realpath "$COLI_PATH")"
 # cli.js lives at <pkg>/distribution/cli.js; two dirname calls reach the package root.
@@ -115,6 +119,7 @@ cat >"$CONTENTS_DIR/Info.plist" <<PLIST
 PLIST
 
 codesign --force --sign - \
+  --entitlements "$ROOT_DIR/Murmur.entitlements" \
   --identifier "$APP_BUNDLE_ID" \
   --requirements "$APP_CODESIGN_REQUIREMENT" \
   "$MACOS_DIR/Murmur" >/dev/null
