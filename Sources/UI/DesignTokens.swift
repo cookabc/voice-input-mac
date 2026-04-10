@@ -15,8 +15,9 @@ enum MurmurDesignTokens {
         static let controlBackground = Color(.controlBackgroundColor)
         static let separator = Color(.separatorColor)
         static let accent = Color.accentColor
-        static let error = Color(red: 1.0, green: 0.72, blue: 0.22)
+        static let error = Color(red: 1.0, green: 0.23, blue: 0.19)
         static let success = Color(red: 0.30, green: 0.86, blue: 0.56)
+        static let warning = Color(red: 1.0, green: 0.72, blue: 0.22)
     }
 
     // MARK: - Typography
@@ -49,6 +50,7 @@ enum MurmurDesignTokens {
         static let small: CGFloat = 6
         static let medium: CGFloat = 10
         static let large: CGFloat = 14
+        static let extraLarge: CGFloat = 20
         static let capsule: CGFloat = 32
     }
 
@@ -131,5 +133,8 @@ enum MurmurDesignTokens {
         static let spring = SwiftUI.Animation.spring(response: 0.35, dampingFraction: 0.7)
         static let quick = SwiftUI.Animation.easeOut(duration: 0.2)
         static let smooth = SwiftUI.Animation.easeInOut(duration: 0.3)
+        static let standard = SwiftUI.Animation.easeInOut(duration: 0.25)
+        static let slow = SwiftUI.Animation.easeInOut(duration: 0.4)
+        static let smoothSpring = SwiftUI.Animation.spring(response: 0.4, dampingFraction: 0.85)
     }
 }

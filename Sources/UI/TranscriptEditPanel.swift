@@ -74,24 +74,24 @@ private struct TranscriptEditView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: MurmurDesignTokens.Spacing.md) {
+            VStack(alignment: .leading, spacing: MurmurDesignTokens.Spacing.sm) {
                 Text(String(localized: "Review before inserting"))
-                    .font(.title3.weight(.semibold))
+                    .font(MurmurDesignTokens.Typography.headline)
 
                 Text(String(localized: "Edit the transcript, then insert it, copy it, or cancel."))
-                    .font(.subheadline)
+                    .font(MurmurDesignTokens.Typography.callout)
                     .foregroundStyle(.secondary)
             }
 
             TextEditor(text: $draft)
-                .font(.system(size: 14))
+                .font(MurmurDesignTokens.Typography.body)
                 .inputFieldStyle()
                 .accessibilityIdentifier(AccessibilityID.transcriptEditor)
 
             HStack {
                 Text(String(localized: "Cmd+Return inserts"))
-                    .font(.caption)
+                    .font(MurmurDesignTokens.Typography.caption)
                     .foregroundStyle(.secondary)
 
                 Spacer()
@@ -126,7 +126,7 @@ private struct TranscriptEditView: View {
                 .accessibilityIdentifier(AccessibilityID.transcriptInsert)
             }
         }
-        .padding(20)
-        .frame(minWidth: 480, minHeight: 300)
+        .padding(MurmurDesignTokens.Panel.transcriptPadding)
+        .frame(minWidth: MurmurDesignTokens.Panel.transcriptMinWidth, minHeight: MurmurDesignTokens.Panel.transcriptMinHeight)
     }
 }

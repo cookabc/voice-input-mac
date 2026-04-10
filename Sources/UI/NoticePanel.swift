@@ -145,17 +145,17 @@ private struct NoticePanelView: View {
                         .fill(style.tint.opacity(0.14))
 
                     Image(systemName: style.symbolName)
-                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(style.tint)
                 }
-                .frame(width: 42, height: 42)
+                .frame(width: MurmurDesignTokens.Panel.noticeIconSize, height: MurmurDesignTokens.Panel.noticeIconSize)
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(title)
-                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                        .font(.system(size: 17, weight: .semibold))
 
                     Text(message)
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -193,9 +193,9 @@ private struct NoticePanelView: View {
                 .accessibilityIdentifier(AccessibilityID.noticePrimaryAction)
             }
         }
-        .padding(20)
-        .frame(width: 380)
+        .padding(MurmurDesignTokens.Panel.noticePadding)
+        .frame(width: MurmurDesignTokens.Panel.noticeWidth)
         .panelBackground()
-        .padding(12)
+        .padding(MurmurDesignTokens.Spacing.sd)
     }
 }

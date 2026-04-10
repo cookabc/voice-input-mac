@@ -23,12 +23,12 @@ struct CapsuleView: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(titleText)
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Color.primary)
 
                 Text(detailText)
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundStyle(Color.primary.opacity(0.72))
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.primary.opacity(MurmurDesignTokens.Opacity.text))
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .minimumScaleFactor(0.85)

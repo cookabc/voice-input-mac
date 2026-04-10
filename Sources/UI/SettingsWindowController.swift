@@ -40,7 +40,7 @@ final class SettingsWindowController {
         let win = NSWindow(contentViewController: hostingController)
         win.title = String(localized: "Murmur Settings")
         win.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        win.setContentSize(NSSize(width: 640, height: 480))
+        win.setContentSize(NSSize(width: 580, height: 420))
         win.minSize = NSSize(width: 520, height: 380)
         win.center()
         win.isReleasedWhenClosed = false
@@ -134,23 +134,38 @@ private struct HotkeyPage: View {
                     Text(String(localized: "Shortcut"))
                     Spacer()
 
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(model.isRecordingHotkey
-                                  ? Color.accentColor.opacity(0.15)
-                                  : Color(nsColor: .controlBackgroundColor))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .stroke(model.isRecordingHotkey ? Color.accentColor : Color(.separatorColor))
-                            )
-
-                        Text(model.isRecordingHotkey ? String(localized: "Press shortcut…") : model.hotkeyDisplay)
+                    if model.isRecordingHotkey {
+                        Text(String(localized: "Press keys…"))
                             .font(.body)
-                            .foregroundStyle(model.isRecordingHotkey ? .secondary : .primary)
+                            .foregroundStyle(Color.accentColor)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .stroke(Color.accentColor, lineWidth: 1)
+                            )
+                    } else {
+                        Text(model.hotkeyDisplay)
+                            .font(.body)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(Color(nsColor: .controlBackgroundColor))
+                            )
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .stroke(Color(.separatorColor), lineWidth: 0.5)
+                            }
                     }
-                    .frame(maxWidth: 200, minHeight: 32, maxHeight: 32)
-                    .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    .onTapGesture { model.isRecordingHotkey = true }
+
+                    Button(model.isRecordingHotkey ? String(localized: "Cancel") : String(localized: "Record")) {
+                        if model.isRecordingHotkey {
+                            model.isRecordingHotkey = false
+                        } else {
+                            model.isRecordingHotkey = true
+                        }
+                    }
                     .background(
                         HotkeyRecorder(
                             isRecording: $model.isRecordingHotkey,
@@ -159,11 +174,6 @@ private struct HotkeyPage: View {
                             }
                         )
                     )
-
-                    Button(String(localized: "Reset")) {
-                        model.resetHotkey()
-                    }
-                    .controlSize(.small)
                 }
 
                 Text(String(localized: "Use a keyboard shortcut as an alternative to holding the Fn key."))
@@ -457,6 +467,15 @@ private struct AppearancePage: View {
                     }
                 }
                 .pickerStyle(.segmented)
+            }
+
+            Section(String(localized: "About")) {
+                LabeledContent(String(localized: "Version")) {
+                    Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
+                }
+                LabeledContent(String(localized: "Build")) {
+                    Text(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1")
+                }
             }
         }
         .formStyle(.grouped)
