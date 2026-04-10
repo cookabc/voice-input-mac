@@ -73,14 +73,12 @@ hdiutil create -volname "Murmur" \
 murmur/
 ├── Package.swift
 ├── dev.sh                Build + stage + launch (--no-run, --release flags)
+├── Makefile              Build / stage / run / install / clean
 ├── Sources/
 │   ├── App/              Entry point, NSStatusItem, NSPanel
 │   ├── Engine/           Audio recording, live ASR, coli, LLM polish
 │   ├── Support/          Path resolution, CGEvent paste
 │   └── UI/               SwiftUI panel + view model
-└── docs/
-    ├── product-spec.zh-CN.md
-    └── technical-assessment.zh-CN.md
 ```
 
 ## Architecture
@@ -100,11 +98,6 @@ AVAudioEngine ──buffers──▶ LiveSpeechRecognizer  (parallel zh-CN / zh-
                                     │
                       TextInsertionService → CGEvent ⌘V → frontmost app
 ```
-
-## Internal Docs
-
-- [Product Spec](docs/product-spec.zh-CN.md)
-- [Technical Assessment](docs/technical-assessment.zh-CN.md)
 
 ## License
 

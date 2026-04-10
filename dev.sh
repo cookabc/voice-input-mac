@@ -2,10 +2,10 @@
 # dev.sh — Build, stage, and optionally launch Murmur.app
 #
 # Usage:
-#   ./Scripts/dev.sh              # build + stage + launch (default)
-#   ./Scripts/dev.sh --no-run     # build + stage only
-#   ./Scripts/dev.sh --release    # release build + stage + launch
-#   ./Scripts/dev.sh --release --no-run
+#   ./dev.sh              # build + stage + launch (default)
+#   ./dev.sh --no-run     # build + stage only
+#   ./dev.sh --release    # release build + stage + launch
+#   ./dev.sh --release --no-run
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
