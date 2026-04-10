@@ -22,24 +22,25 @@ enum MurmurDesignTokens {
     // MARK: - Typography
 
     enum Typography {
-        static let title: Font = .system(size: 17, weight: .semibold, design: .rounded)
-        static let headline: Font = .system(size: 15, weight: .semibold, design: .rounded)
-        static let body: Font = .system(size: 14, weight: .regular)
-        static let detail: Font = .system(size: 13, weight: .medium, design: .rounded)
-        static let caption: Font = .system(size: 12, weight: .medium)
-        static let monospaced: Font = .system(size: 14, weight: .regular, design: .monospaced)
+        static let largeTitle: Font = .largeTitle.weight(.medium)
+        static let title: Font = .title.weight(.bold)
+        static let headline: Font = .headline
+        static let body: Font = .body
+        static let callout: Font = .callout
+        static let caption: Font = .caption.weight(.medium)
+        static let monospaced = Font.system(size: 13, weight: .regular, design: .monospaced)
     }
 
     // MARK: - Spacing
 
     enum Spacing {
         static let xs: CGFloat = 4
-        static let sm: CGFloat = 6
-        static let sd: CGFloat = 10
-        static let md: CGFloat = 14
-        static let lg: CGFloat = 18
-        static let xl: CGFloat = 24
-        static let xxl: CGFloat = 32
+        static let sm: CGFloat = 8
+        static let sd: CGFloat = 12
+        static let md: CGFloat = 16
+        static let lg: CGFloat = 24
+        static let xl: CGFloat = 32
+        static let xxl: CGFloat = 48
     }
 
     // MARK: - Radius
@@ -54,17 +55,18 @@ enum MurmurDesignTokens {
     // MARK: - Shadows
 
     enum Shadow {
-        static let subtle = Color.black.opacity(0.06)
-        static let light = Color.black.opacity(0.12)
-        static let medium = Color.black.opacity(0.18)
+        static let subtle = Color.black.opacity(0.05)
+        static let light = Color.black.opacity(0.1)
+        static let medium = Color.black.opacity(0.15)
+        static let strong = Color.black.opacity(0.25)
     }
 
     // MARK: - Border
 
     enum Border {
         static let thin: CGFloat = 0.5
-        static let regular: CGFloat = 1.0
-        static let thick: CGFloat = 1.5
+        static let regular: CGFloat = 1
+        static let thick: CGFloat = 2
     }
 
     // MARK: - Opacity
@@ -99,7 +101,7 @@ enum MurmurDesignTokens {
     enum IconSize {
         static let small: CGFloat = 12
         static let medium: CGFloat = 16
-        static let large: CGFloat = 18
+        static let large: CGFloat = 20
         static let extraLarge: CGFloat = 24
     }
 

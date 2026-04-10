@@ -169,15 +169,15 @@ struct MurmurMenuBarExtraContent: View {
             }
 
             // ── Status header ─────────────────────────────────────
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(menuBar.labelTintColor.opacity(0.12))
                     Image(systemName: menuBar.labelSymbolName)
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(menuBar.labelTintColor)
                 }
-                .frame(width: 32, height: 32)
+                .frame(width: 28, height: 28)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Murmur")

@@ -40,8 +40,8 @@ final class SettingsWindowController {
         let win = NSWindow(contentViewController: hostingController)
         win.title = String(localized: "Murmur Settings")
         win.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        win.setContentSize(NSSize(width: 720, height: 520))
-        win.minSize = NSSize(width: 640, height: 460)
+        win.setContentSize(NSSize(width: 640, height: 480))
+        win.minSize = NSSize(width: 520, height: 380)
         win.center()
         win.isReleasedWhenClosed = false
         win.titlebarAppearsTransparent = true
@@ -101,16 +101,12 @@ private struct SettingsContentView: View {
                     .tag(page)
             }
             .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 240)
+            .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 200)
         } detail: {
-            ScrollView {
-                detailContent
-                    .frame(maxWidth: 520, alignment: .leading)
-                    .padding(24)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(nsColor: .windowBackgroundColor))
+            detailContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .toolbar(removing: .title)
     }
 
     @ViewBuilder
@@ -126,72 +122,15 @@ private struct SettingsContentView: View {
     }
 }
 
-// MARK: - Page header
-
-private struct PageHeader: View {
-    let title: String
-    let subtitle: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.title2.weight(.semibold))
-            Text(subtitle)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.bottom, 8)
-    }
-}
-
-// MARK: - Grouped card container
-
-private struct SettingsCard<Content: View>: View {
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            content
-        }
-        .settingsCard()
-    }
-}
-
-/// A single row inside a SettingsCard.
-private struct CardRow<Content: View>: View {
-    var showDivider: Bool = true
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                content
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-
-            if showDivider {
-                Divider().padding(.leading, 16)
-            }
-        }
-    }
-}
-
 // MARK: - 1. Hotkey Page
 
 private struct HotkeyPage: View {
     @Bindable var model: SettingsModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            PageHeader(
-                title: String(localized: "Hotkey"),
-                subtitle: String(localized: "Use a keyboard shortcut as an alternative to holding the Fn key.")
-            )
-
-            SettingsCard {
-                CardRow(showDivider: false) {
+        Form {
+            Section {
+                HStack {
                     Text(String(localized: "Shortcut"))
                         .frame(width: 80, alignment: .leading)
 
@@ -206,7 +145,7 @@ private struct HotkeyPage: View {
                             )
 
                         Text(model.isRecordingHotkey ? "Press shortcut…" : model.hotkeyDisplay)
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(model.isRecordingHotkey ? .secondary : .primary)
                     }
                     .frame(maxWidth: 200, minHeight: 32, maxHeight: 32)
@@ -228,8 +167,13 @@ private struct HotkeyPage: View {
                     }
                     .controlSize(.small)
                 }
+            } header: {
+                Text(String(localized: "Hotkey"))
+            } footer: {
+                Text(String(localized: "Use a keyboard shortcut as an alternative to holding the Fn key."))
             }
         }
+        .formStyle(.grouped)
     }
 }
 
@@ -239,64 +183,74 @@ private struct SpeechRuntimePage: View {
     @Bindable var model: SettingsModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            PageHeader(
-                title: String(localized: "Speech Runtime"),
-                subtitle: String(localized: "Current final-transcription engine status.")
-            )
-
-            SettingsCard {
-                runtimeRow(label: String(localized: "Status"), value: model.speechRuntime.summaryLine,
-                           color: model.speechRuntime.isHelperAvailable ? .green : .red, showDivider: true)
-                runtimeRow(label: String(localized: "Provider"), value: model.speechRuntime.providerIdentifier, showDivider: true)
+        Form {
+            Section {
+                LabeledContent(String(localized: "Status")) {
+                    Text(model.speechRuntime.summaryLine)
+                        .foregroundStyle(model.speechRuntime.isHelperAvailable ? .green : .red)
+                }
+                LabeledContent(String(localized: "Provider")) {
+                    Text(model.speechRuntime.providerIdentifier)
+                        .textSelection(.enabled)
+                }
 
                 if let modelName = model.speechRuntime.modelName {
-                    runtimeRow(label: String(localized: "Model"), value: modelName, showDivider: true)
+                    LabeledContent(String(localized: "Model")) {
+                        Text(modelName).textSelection(.enabled)
+                    }
                 }
 
-                runtimeRow(label: String(localized: "Model Status"), value: model.speechRuntime.modelStatusLine,
-                           color: model.speechRuntime.isModelAvailable ? .green : .red, showDivider: true)
-                runtimeRow(label: String(localized: "Helper"), value: model.speechRuntime.helperStatusLine,
-                           color: model.speechRuntime.isHelperAvailable ? .green : .red, showDivider: true)
-                runtimeRow(label: String(localized: "Origin"), value: model.speechRuntime.helperOriginLine, showDivider: true)
-                runtimeRow(label: String(localized: "Path"), value: model.speechRuntime.helperPath, mono: true, showDivider: true)
-                runtimeRow(label: String(localized: "Support"), value: model.speechRuntime.supportDirectoryPath, mono: true, showDivider: true)
-                runtimeRow(label: String(localized: "Config"), value: model.speechRuntime.configFilePath, mono: true, showDivider: false)
+                LabeledContent(String(localized: "Model Status")) {
+                    Text(model.speechRuntime.modelStatusLine)
+                        .foregroundStyle(model.speechRuntime.isModelAvailable ? .green : .red)
+                }
+                LabeledContent(String(localized: "Helper")) {
+                    Text(model.speechRuntime.helperStatusLine)
+                        .foregroundStyle(model.speechRuntime.isHelperAvailable ? .green : .red)
+                }
+                LabeledContent(String(localized: "Origin")) {
+                    Text(model.speechRuntime.helperOriginLine).textSelection(.enabled)
+                }
+                LabeledContent(String(localized: "Path")) {
+                    Text(model.speechRuntime.helperPath)
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                        .multilineTextAlignment(.trailing)
+                }
+                LabeledContent(String(localized: "Support")) {
+                    Text(model.speechRuntime.supportDirectoryPath)
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                        .multilineTextAlignment(.trailing)
+                }
+                LabeledContent(String(localized: "Config")) {
+                    Text(model.speechRuntime.configFilePath)
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                        .multilineTextAlignment(.trailing)
+                }
+            } header: {
+                Text(String(localized: "Speech Runtime"))
+            } footer: {
+                Text(String(localized: "Current final-transcription engine status."))
             }
 
-            HStack(spacing: 12) {
-                Button(String(localized: "Refresh Runtime")) { model.refreshSpeechRuntime() }
+            Section {
+                HStack(spacing: 12) {
+                    Button(String(localized: "Refresh Runtime")) { model.refreshSpeechRuntime() }
 
-                Button(String(localized: "Reveal Helper")) {
-                    model.revealInFinder(path: model.speechRuntime.helperPath)
-                }
-                .disabled(!FileManager.default.fileExists(atPath: model.speechRuntime.helperPath))
+                    Button(String(localized: "Reveal Helper")) {
+                        model.revealInFinder(path: model.speechRuntime.helperPath)
+                    }
+                    .disabled(!FileManager.default.fileExists(atPath: model.speechRuntime.helperPath))
 
-                Button(String(localized: "Reveal Support Files")) {
-                    model.revealInFinder(path: model.speechRuntime.supportDirectoryPath)
+                    Button(String(localized: "Reveal Support Files")) {
+                        model.revealInFinder(path: model.speechRuntime.supportDirectoryPath)
+                    }
                 }
             }
         }
-    }
-
-    @ViewBuilder
-    private func runtimeRow(label: String, value: String, color: Color = .primary, mono: Bool = false, showDivider: Bool) -> some View {
-        CardRow(showDivider: showDivider) {
-            Text(label)
-                .foregroundStyle(.secondary)
-                .frame(width: 90, alignment: .leading)
-            Spacer()
-            Group {
-                if mono {
-                    Text(value).font(.system(.body, design: .monospaced))
-                } else {
-                    Text(value)
-                }
-            }
-            .foregroundStyle(color)
-            .textSelection(.enabled)
-            .multilineTextAlignment(.trailing)
-        }
+        .formStyle(.grouped)
     }
 }
 
@@ -306,38 +260,20 @@ private struct SpeechModelsPage: View {
     @Bindable var model: SettingsModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            PageHeader(
-                title: String(localized: "Speech Models"),
-                subtitle: String(localized: "Manage local ASR models for the final transcription pass.")
-            )
-
+        Form {
             ForEach(model.modelManager.models) { speechModel in
-                SettingsCard {
-                    CardRow(showDivider: true) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(speechModel.displayName)
-                                .font(.headline)
-                            Text(speechModel.summary)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
+                Section(speechModel.displayName) {
+                    LabeledContent(String(localized: "Description")) {
+                        Text(speechModel.summary)
+                    }
+                    LabeledContent(String(localized: "Status")) {
                         modelBadge(for: speechModel)
                     }
-
-                    CardRow(showDivider: true) {
-                        Text(String(localized: "Languages"))
-                            .foregroundStyle(.secondary)
-                        Spacer()
+                    LabeledContent(String(localized: "Languages")) {
                         Text(speechModel.supportedLanguages)
                             .multilineTextAlignment(.trailing)
                     }
-
-                    CardRow(showDivider: true) {
-                        Text(String(localized: "Location"))
-                            .foregroundStyle(.secondary)
-                        Spacer()
+                    LabeledContent(String(localized: "Location")) {
                         Text(speechModel.installPath)
                             .font(.system(.caption, design: .monospaced))
                             .textSelection(.enabled)
@@ -345,40 +281,39 @@ private struct SpeechModelsPage: View {
                             .lineLimit(2)
                     }
 
-                    CardRow(showDivider: false) {
-                        modelActions(for: speechModel)
-                        Spacer()
-                    }
+                    modelActions(for: speechModel)
                 }
             }
 
             if let activeDownload = model.modelManager.activeDownloadModel {
-                SettingsCard {
-                    CardRow(showDivider: false) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(String(localized: "Installing \(activeDownload.displayName)…"))
-                                .font(.caption.weight(.semibold))
-                            if let progress = model.modelManager.downloadProgress {
-                                ProgressView(value: progress)
-                            } else {
-                                ProgressView()
-                            }
+                Section(String(localized: "Download")) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(String(localized: "Installing \(activeDownload.displayName)…"))
+                            .font(.caption.weight(.semibold))
+                        if let progress = model.modelManager.downloadProgress {
+                            ProgressView(value: progress)
+                        } else {
+                            ProgressView()
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
             }
 
             if !model.modelManager.statusMessage.isEmpty {
-                Text(model.modelManager.statusMessage)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Section {
+                    Text(model.modelManager.statusMessage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
-            Button(String(localized: "Reveal Models Folder")) {
-                model.revealInFinder(path: model.modelManager.modelsDirectoryPath)
+            Section {
+                Button(String(localized: "Reveal Models Folder")) {
+                    model.revealInFinder(path: model.modelManager.modelsDirectoryPath)
+                }
             }
         }
+        .formStyle(.grouped)
     }
 
     @ViewBuilder
@@ -433,14 +368,9 @@ private struct LLMAPIPage: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            PageHeader(
-                title: String(localized: "LLM API"),
-                subtitle: String(localized: "Configure the language model used for text refinement.")
-            )
-
-            SettingsCard {
-                CardRow(showDivider: true) {
+        Form {
+            Section {
+                HStack {
                     Text(String(localized: "Base URL"))
                         .frame(width: 80, alignment: .leading)
                     TextField("https://api.openai.com/v1", text: $model.baseURL)
@@ -448,7 +378,7 @@ private struct LLMAPIPage: View {
                         .focused($focusedField, equals: .baseURL)
                 }
 
-                CardRow(showDivider: true) {
+                HStack {
                     Text(String(localized: "API Key"))
                         .frame(width: 80, alignment: .leading)
                     SecureField("sk-…", text: $model.apiKey)
@@ -456,31 +386,38 @@ private struct LLMAPIPage: View {
                         .focused($focusedField, equals: .apiKey)
                 }
 
-                CardRow(showDivider: false) {
+                HStack {
                     Text(String(localized: "Model"))
                         .frame(width: 80, alignment: .leading)
                     TextField("gpt-4o-mini", text: $model.model)
                         .textFieldStyle(.roundedBorder)
                         .focused($focusedField, equals: .modelName)
                 }
+            } header: {
+                Text(String(localized: "LLM API"))
+            } footer: {
+                Text(String(localized: "Configure the language model used for text refinement."))
             }
 
-            HStack(spacing: 12) {
-                Button(String(localized: "Test Connection")) { model.testConnection() }
-                    .disabled(model.isTesting)
-                    .accessibilityIdentifier(AccessibilityID.settingsTestConnection)
+            Section {
+                HStack(spacing: 12) {
+                    Button(String(localized: "Test Connection")) { model.testConnection() }
+                        .disabled(model.isTesting)
+                        .accessibilityIdentifier(AccessibilityID.settingsTestConnection)
 
-                Button(String(localized: "Save")) { model.save() }
-                    .keyboardShortcut(.defaultAction)
-                    .accessibilityIdentifier(AccessibilityID.settingsSave)
+                    Button(String(localized: "Save")) { model.save() }
+                        .keyboardShortcut(.defaultAction)
+                        .accessibilityIdentifier(AccessibilityID.settingsSave)
 
-                if !model.statusMessage.isEmpty {
-                    Text(model.statusMessage)
-                        .font(.caption)
-                        .foregroundColor(model.statusMessage.hasPrefix("✓") ? .green : .secondary)
+                    if !model.statusMessage.isEmpty {
+                        Text(model.statusMessage)
+                            .font(.caption)
+                            .foregroundColor(model.statusMessage.hasPrefix("✓") ? .green : .secondary)
+                    }
                 }
             }
         }
+        .formStyle(.grouped)
         .onChange(of: focusedField) { _, newValue in
             autoSaveTask?.cancel()
             if newValue == nil {
@@ -500,30 +437,26 @@ private struct WorkflowPage: View {
     @Bindable var model: SettingsModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            PageHeader(
-                title: String(localized: "Workflow"),
-                subtitle: String(localized: "Customize how Murmur inserts transcribed text.")
-            )
-
-            SettingsCard {
-                CardRow(showDivider: false) {
+        Form {
+            Section {
+                Toggle(isOn: Binding(
+                    get: { model.editBeforePaste },
+                    set: { model.updateEditBeforePaste($0) }
+                )) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(String(localized: "Review Before Paste"))
                         Text(String(localized: "Show a review window before inserting text into the active app."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    Spacer()
-                    Toggle("", isOn: Binding(
-                        get: { model.editBeforePaste },
-                        set: { model.updateEditBeforePaste($0) }
-                    ))
-                        .labelsHidden()
-                        .toggleStyle(.switch)
                 }
+            } header: {
+                Text(String(localized: "Workflow"))
+            } footer: {
+                Text(String(localized: "Customize how Murmur inserts transcribed text."))
             }
         }
+        .formStyle(.grouped)
     }
 }
 
@@ -533,29 +466,20 @@ private struct AppearancePage: View {
     @Bindable var model: SettingsModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            PageHeader(
-                title: String(localized: "Appearance"),
-                subtitle: String(localized: "Choose the look and feel of Murmur.")
-            )
-
-            SettingsCard {
-                CardRow(showDivider: false) {
-                    Text(String(localized: "Theme"))
-                        .frame(width: 80, alignment: .leading)
-                    Picker("", selection: Binding(
-                        get: { model.appTheme },
-                        set: { model.updateTheme($0) }
-                    )) {
-                        ForEach(AppTheme.allCases, id: \.self) { theme in
-                            Text(theme.displayName).tag(theme)
-                        }
+        Form {
+            Section(String(localized: "Theme")) {
+                Picker(String(localized: "Appearance"), selection: Binding(
+                    get: { model.appTheme },
+                    set: { model.updateTheme($0) }
+                )) {
+                    ForEach(AppTheme.allCases, id: \.self) { theme in
+                        Text(theme.displayName).tag(theme)
                     }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
                 }
+                .pickerStyle(.segmented)
             }
         }
+        .formStyle(.grouped)
     }
 }
 
