@@ -39,13 +39,16 @@ final class SettingsWindowController {
 
         let win = NSWindow(contentViewController: hostingController)
         win.title = String(localized: "Murmur Settings")
-        win.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        win.styleMask = [.titled, .closable, .resizable]
         win.setContentSize(NSSize(width: 580, height: 420))
         win.minSize = NSSize(width: 520, height: 380)
         win.center()
         win.isReleasedWhenClosed = false
-        win.titlebarAppearsTransparent = true
-        win.toolbarStyle = .unified
+
+        // Add toolbar so NavigationSplitView sidebar toggle appears (matches LT Settings scene)
+        let toolbar = NSToolbar(identifier: "MurmurSettings")
+        toolbar.displayMode = .iconOnly
+        win.toolbar = toolbar
 
         window = win
         win.makeKeyAndOrderFront(nil)
