@@ -59,7 +59,7 @@ final class SettingsWindowController: NSObject, NSToolbarDelegate {
         let win = NSWindow(contentViewController: hostingController)
         win.title = String(localized: "Murmur Settings")
         win.styleMask = [.titled, .closable, .resizable]
-        win.setContentSize(NSSize(width: 580, height: 420))
+        win.setContentSize(NSSize(width: 560, height: 420))
         win.minSize = NSSize(width: 520, height: 380)
         win.center()
         win.isReleasedWhenClosed = false
@@ -116,11 +116,18 @@ private enum SettingsPage: String, CaseIterable, Identifiable {
 
 private struct SettingsContentView: View {
     @Bindable var model: SettingsModel
-    @State private var selectedPage: SettingsPage = .llmAPI
+    @AppStorage("murmurSettingsSelectedPage") private var selectedPageRawValue: String = SettingsPage.llmAPI.rawValue
+
+    private var selectedPage: Binding<SettingsPage> {
+        Binding(
+            get: { SettingsPage(rawValue: selectedPageRawValue) ?? .llmAPI },
+            set: { selectedPageRawValue = $0.rawValue }
+        )
+    }
 
     var body: some View {
         NavigationSplitView {
-            List(SettingsPage.allCases, selection: $selectedPage) { page in
+            List(SettingsPage.allCases, selection: selectedPage) { page in
                 Label(page.localizedName, systemImage: page.icon)
                     .tag(page)
             }
@@ -135,7 +142,7 @@ private struct SettingsContentView: View {
 
     @ViewBuilder
     private var detailContent: some View {
-        switch selectedPage {
+        switch SettingsPage(rawValue: selectedPageRawValue) ?? .llmAPI {
         case .hotkey:        HotkeyPage(model: model)
         case .speechRuntime: SpeechRuntimePage(model: model)
         case .speechModels:  SpeechModelsPage(model: model)
@@ -160,26 +167,26 @@ private struct HotkeyPage: View {
 
                     if model.isRecordingHotkey {
                         Text(String(localized: "Press keys…"))
-                            .font(.body)
-                            .foregroundStyle(Color.accentColor)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
+                            .font(MurmurDesignTokens.Typography.body)
+                            .foregroundStyle(MurmurDesignTokens.Colors.accent)
+                            .padding(.horizontal, MurmurDesignTokens.Spacing.sm)
+                            .padding(.vertical, MurmurDesignTokens.Spacing.xs)
                             .background(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .stroke(Color.accentColor, lineWidth: 1)
+                                RoundedRectangle(cornerRadius: MurmurDesignTokens.Radius.small, style: .continuous)
+                                    .stroke(MurmurDesignTokens.Colors.accent, lineWidth: MurmurDesignTokens.Border.regular)
                             )
                     } else {
                         Text(model.hotkeyDisplay)
-                            .font(.body)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
+                            .font(MurmurDesignTokens.Typography.body)
+                            .padding(.horizontal, MurmurDesignTokens.Spacing.sm)
+                            .padding(.vertical, MurmurDesignTokens.Spacing.xs)
                             .background(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(Color(nsColor: .controlBackgroundColor))
+                                RoundedRectangle(cornerRadius: MurmurDesignTokens.Radius.small, style: .continuous)
+                                    .fill(MurmurDesignTokens.Colors.controlBackground)
                             )
                             .overlay {
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .stroke(Color(.separatorColor), lineWidth: 0.5)
+                                RoundedRectangle(cornerRadius: MurmurDesignTokens.Radius.small, style: .continuous)
+                                    .stroke(MurmurDesignTokens.Colors.separator, lineWidth: MurmurDesignTokens.Border.thin)
                             }
                     }
 
@@ -201,8 +208,8 @@ private struct HotkeyPage: View {
                 }
 
                 Text(String(localized: "Use a keyboard shortcut as an alternative to holding the Fn key."))
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .font(MurmurDesignTokens.Typography.caption)
+                    .foregroundStyle(MurmurDesignTokens.Colors.tertiary)
             }
         }
         .formStyle(.grouped)
@@ -219,7 +226,7 @@ private struct SpeechRuntimePage: View {
             Section(String(localized: "Speech Runtime")) {
                 LabeledContent(String(localized: "Status")) {
                     Text(model.speechRuntime.summaryLine)
-                        .foregroundStyle(model.speechRuntime.isHelperAvailable ? .green : .red)
+                        .foregroundStyle(model.speechRuntime.isHelperAvailable ? MurmurDesignTokens.Colors.success : MurmurDesignTokens.Colors.error)
                 }
                 LabeledContent(String(localized: "Provider")) {
                     Text(model.speechRuntime.providerIdentifier)
@@ -234,30 +241,30 @@ private struct SpeechRuntimePage: View {
 
                 LabeledContent(String(localized: "Model Status")) {
                     Text(model.speechRuntime.modelStatusLine)
-                        .foregroundStyle(model.speechRuntime.isModelAvailable ? .green : .red)
+                        .foregroundStyle(model.speechRuntime.isModelAvailable ? MurmurDesignTokens.Colors.success : MurmurDesignTokens.Colors.error)
                 }
                 LabeledContent(String(localized: "Helper")) {
                     Text(model.speechRuntime.helperStatusLine)
-                        .foregroundStyle(model.speechRuntime.isHelperAvailable ? .green : .red)
+                        .foregroundStyle(model.speechRuntime.isHelperAvailable ? MurmurDesignTokens.Colors.success : MurmurDesignTokens.Colors.error)
                 }
                 LabeledContent(String(localized: "Origin")) {
                     Text(model.speechRuntime.helperOriginLine).textSelection(.enabled)
                 }
                 LabeledContent(String(localized: "Path")) {
                     Text(model.speechRuntime.helperPath)
-                        .font(.system(.body, design: .monospaced))
+                        .font(MurmurDesignTokens.Typography.monospaced)
                         .textSelection(.enabled)
                         .multilineTextAlignment(.trailing)
                 }
                 LabeledContent(String(localized: "Support")) {
                     Text(model.speechRuntime.supportDirectoryPath)
-                        .font(.system(.body, design: .monospaced))
+                        .font(MurmurDesignTokens.Typography.monospaced)
                         .textSelection(.enabled)
                         .multilineTextAlignment(.trailing)
                 }
                 LabeledContent(String(localized: "Config")) {
                     Text(model.speechRuntime.configFilePath)
-                        .font(.system(.body, design: .monospaced))
+                        .font(MurmurDesignTokens.Typography.monospaced)
                         .textSelection(.enabled)
                         .multilineTextAlignment(.trailing)
                 }
@@ -265,12 +272,12 @@ private struct SpeechRuntimePage: View {
 
             Section {
                 Text(String(localized: "Current final-transcription engine status."))
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .font(MurmurDesignTokens.Typography.caption)
+                    .foregroundStyle(MurmurDesignTokens.Colors.tertiary)
             }
 
             Section {
-                HStack(spacing: 12) {
+                HStack(spacing: MurmurDesignTokens.Spacing.sd) {
                     Button(String(localized: "Refresh Runtime")) { model.refreshSpeechRuntime() }
 
                     Button(String(localized: "Reveal Helper")) {
@@ -309,7 +316,7 @@ private struct SpeechModelsPage: View {
                     }
                     LabeledContent(String(localized: "Location")) {
                         Text(speechModel.installPath)
-                            .font(.system(.caption, design: .monospaced))
+                            .font(MurmurDesignTokens.Typography.monospaced)
                             .textSelection(.enabled)
                             .multilineTextAlignment(.trailing)
                             .lineLimit(2)
@@ -321,9 +328,9 @@ private struct SpeechModelsPage: View {
 
             if let activeDownload = model.modelManager.activeDownloadModel {
                 Section(String(localized: "Download")) {
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: MurmurDesignTokens.Spacing.sm) {
                         Text(String(localized: "Installing \(activeDownload.displayName)…"))
-                            .font(.caption.weight(.semibold))
+                            .font(MurmurDesignTokens.Typography.caption)
                         if let progress = model.modelManager.downloadProgress {
                             ProgressView(value: progress)
                         } else {
@@ -336,8 +343,8 @@ private struct SpeechModelsPage: View {
             if !model.modelManager.statusMessage.isEmpty {
                 Section {
                     Text(model.modelManager.statusMessage)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(MurmurDesignTokens.Typography.caption)
+                        .foregroundStyle(MurmurDesignTokens.Colors.secondary)
                 }
             }
 
@@ -354,22 +361,22 @@ private struct SpeechModelsPage: View {
     private func modelBadge(for speechModel: SpeechModelState) -> some View {
         if speechModel.isSelected {
             Label(String(localized: "Current"), systemImage: "checkmark.circle.fill")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.green)
+                .font(MurmurDesignTokens.Typography.caption)
+                .foregroundStyle(MurmurDesignTokens.Colors.success)
         } else if speechModel.isInstalled {
             Label(String(localized: "Installed"), systemImage: "internaldrive.fill")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .font(MurmurDesignTokens.Typography.caption)
+                .foregroundStyle(MurmurDesignTokens.Colors.secondary)
         } else {
             Label(String(localized: "Not Installed"), systemImage: "arrow.down.circle")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.orange)
+                .font(MurmurDesignTokens.Typography.caption)
+                .foregroundStyle(MurmurDesignTokens.Colors.warning)
         }
     }
 
     @ViewBuilder
     private func modelActions(for speechModel: SpeechModelState) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: MurmurDesignTokens.Spacing.sd) {
             if speechModel.isInstalled {
                 Button(speechModel.isSelected ? String(localized: "Current Model") : String(localized: "Use This Model")) {
                     model.selectSpeechModel(speechModel.id)
@@ -414,12 +421,12 @@ private struct LLMAPIPage: View {
                     .focused($focusedField, equals: .modelName)
 
                 Text(String(localized: "Configure the language model used for text refinement."))
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .font(MurmurDesignTokens.Typography.caption)
+                    .foregroundStyle(MurmurDesignTokens.Colors.tertiary)
             }
 
             Section {
-                HStack(spacing: 12) {
+                HStack(spacing: MurmurDesignTokens.Spacing.sd) {
                     Button(String(localized: "Test Connection")) { model.testConnection() }
                         .disabled(model.isTesting)
                         .accessibilityIdentifier(AccessibilityID.settingsTestConnection)
@@ -430,8 +437,8 @@ private struct LLMAPIPage: View {
 
                     if !model.statusMessage.isEmpty {
                         Text(model.statusMessage)
-                            .font(.caption)
-                            .foregroundColor(model.statusMessage.hasPrefix("✓") ? .green : .secondary)
+                            .font(MurmurDesignTokens.Typography.caption)
+                            .foregroundColor(model.statusMessage.hasPrefix("✓") ? MurmurDesignTokens.Colors.success : MurmurDesignTokens.Colors.secondary)
                     }
                 }
             }
@@ -466,8 +473,8 @@ private struct WorkflowPage: View {
                 }
 
                 Text(String(localized: "Show a review window before inserting text into the active app."))
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .font(MurmurDesignTokens.Typography.caption)
+                    .foregroundStyle(MurmurDesignTokens.Colors.tertiary)
             }
         }
         .formStyle(.grouped)
