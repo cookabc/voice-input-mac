@@ -91,10 +91,10 @@ enum AppPaths {
         let fallbackCandidates = [
             "/opt/homebrew/bin/\(name)",
             "/usr/local/bin/\(name)",
-            "/usr/bin/\(name)",
+            "/usr/bin/\(name)"
         ]
 
-        return fallbackCandidates.first(where: { FileManager.default.fileExists(atPath: $0) })
+        return fallbackCandidates.first { FileManager.default.fileExists(atPath: $0) }
             ?? fallbackCandidates[0]
     }
 }

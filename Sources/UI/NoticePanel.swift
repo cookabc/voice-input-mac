@@ -79,11 +79,10 @@ final class NoticePanelController: NSObject, NSWindowDelegate {
             message: message,
             style: style,
             primaryAction: primaryAction,
-            secondaryAction: secondaryAction,
-            onDismiss: { [weak self] in
+            secondaryAction: secondaryAction
+        )            { [weak self] in
                 self?.dismiss()
             }
-        )
 
         let hostingController = NSHostingController(rootView: contentView)
         let panel = NoticePanelWindow(

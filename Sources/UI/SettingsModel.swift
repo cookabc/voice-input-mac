@@ -13,7 +13,7 @@ final class SettingsModel {
     var isTesting: Bool = false
     var hotkeyDisplay: String = "Fn"
     var isRecordingHotkey: Bool = false
-    var appTheme: AppTheme = AppTheme.current()
+    var appTheme = AppTheme.current()
     let modelManager: ModelManager
 
     @ObservationIgnored

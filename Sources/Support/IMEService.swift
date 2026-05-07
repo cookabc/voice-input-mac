@@ -6,7 +6,6 @@ import Foundation
 /// candidate window. After pasting, call `restore(_:)` with the saved
 /// source to switch back.
 enum IMEService {
-
     /// Opaque wrapper around a saved TIS input source.
     struct SavedState {
         fileprivate let source: TISInputSource
@@ -33,7 +32,7 @@ enum IMEService {
         // Find an ASCII-capable keyboard layout.
         let conditions: NSDictionary = [
             kTISPropertyInputSourceCategory! as String: kTISCategoryKeyboardInputSource! as String,
-            kTISPropertyInputSourceIsSelectCapable! as String: true,
+            kTISPropertyInputSourceIsSelectCapable! as String: true
         ]
 
         guard let list = TISCreateInputSourceList(conditions as CFDictionary, false)?

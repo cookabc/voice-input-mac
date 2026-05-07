@@ -60,7 +60,7 @@ enum KeychainService {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
-            kSecAttrAccount as String: account,
+            kSecAttrAccount as String: account
         ]
     }
 }

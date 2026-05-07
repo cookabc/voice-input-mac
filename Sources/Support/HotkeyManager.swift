@@ -77,7 +77,7 @@ final class HotkeyManager {
         modifiers = newMods
         keyCode   = newKey
         UserDefaults.standard.set(newMods.rawValue, forKey: Self.udModifiers)
-        UserDefaults.standard.set(newKey,           forKey: Self.udKeyCode)
+        UserDefaults.standard.set(newKey, forKey: Self.udKeyCode)
         start()  // restart with new values
     }
 

@@ -69,7 +69,6 @@ private func fnTapCallback(
     event: CGEvent,
     userInfo: UnsafeMutableRawPointer?
 ) -> Unmanaged<CGEvent>? {
-
     // If the tap is disabled by the system (e.g. timeout), re-enable it.
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
         if let userInfo,

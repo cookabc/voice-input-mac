@@ -4,7 +4,6 @@ import SwiftUI
 /// Inspired by LuckyTrans's `DesignTokens` — covers all UI panels,
 /// not just the capsule HUD.
 enum MurmurDesignTokens {
-
     // MARK: - Colors (macOS semantic + brand)
 
     enum Colors {

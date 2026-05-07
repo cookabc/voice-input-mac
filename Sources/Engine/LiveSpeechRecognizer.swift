@@ -11,7 +11,6 @@ enum LiveSpeechError: Error, LocalizedError {
 /// emits partial transcripts through `onPartialResult`.
 /// Handles the 1-minute recognition-task expiry by auto-restarting.
 final class LiveSpeechRecognizer {
-
     private let recognizer: SFSpeechRecognizer?
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
@@ -98,4 +97,3 @@ final class LiveSpeechRecognizer {
         }
     }
 }
-

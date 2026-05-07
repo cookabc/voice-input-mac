@@ -57,7 +57,7 @@ struct CapsuleView: View {
                             colors: [
                                 phaseTint.opacity(0.5),
                                 phaseTint.opacity(0.15),
-                                Color.white.opacity(0.12),
+                                Color.white.opacity(0.12)
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
@@ -169,7 +169,7 @@ private struct RecordingGlyph: View {
                                 LinearGradient(
                                     colors: [
                                         MurmurDesignTokens.Capsule.recordingTint,
-                                        MurmurDesignTokens.Capsule.recordingTint.opacity(0.55),
+                                        MurmurDesignTokens.Capsule.recordingTint.opacity(0.55)
                                     ],
                                     startPoint: .top,
                                     endPoint: .bottom

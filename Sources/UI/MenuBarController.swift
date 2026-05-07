@@ -5,7 +5,6 @@ import SwiftUI
 @MainActor
 @Observable
 final class MenuBarController {
-
     @ObservationIgnored
     private let configManager: any ConfigManaging
 
@@ -65,8 +64,8 @@ final class MenuBarController {
         ("zh-CN", "中文（简体）"),
         ("zh-TW", "中文（繁體）"),
         ("en-US", "English"),
-        ("ja",    "日本語"),
-        ("ko",    "한국어"),
+        ("ja", "日本語"),
+        ("ko", "한국어")
     ]
 
     // MARK: - Persisted state

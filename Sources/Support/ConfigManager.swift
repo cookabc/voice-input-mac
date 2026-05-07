@@ -37,7 +37,7 @@ final class ConfigManager: ObservableObject {
         static let currentSchemaVersion = 1
     }
 
-    @Published private(set) var config: Config = Config()
+    @Published private(set) var config = Config()
     @Published private(set) var configFilePath: String = ""
     @Published private(set) var isUsingFile: Bool = false
 

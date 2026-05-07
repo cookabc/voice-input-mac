@@ -168,13 +168,12 @@ final class ModelManager {
 
             try await Self.downloadArchive(
                 from: identifier.downloadURL,
-                to: archiveURL,
-                progressHandler: { [weak self] progress in
+                to: archiveURL
+            )                { [weak self] progress in
                     Task { @MainActor in
                         self?.downloadProgress = progress
                     }
                 }
-            )
 
             statusMessage = "Extracting \(identifier.displayName)…"
             downloadProgress = nil

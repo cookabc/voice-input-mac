@@ -4,7 +4,6 @@ import SwiftUI
 /// Standalone settings window for LLM API configuration + hotkey.
 @MainActor
 final class SettingsWindowController: NSObject, NSToolbarDelegate {
-
     private var window: NSWindow?
     private let configManager: any ConfigManaging
     private let polisher: LLMPolisher
@@ -192,11 +191,10 @@ private struct GeneralPage: View {
                     }
                     .background(
                         HotkeyRecorder(
-                            isRecording: $model.isRecordingHotkey,
-                            onCaptured: { mods, keyCode in
+                            isRecording: $model.isRecordingHotkey
+                        )                            { mods, keyCode in
                                 model.applyHotkey(modifiers: mods, keyCode: keyCode)
                             }
-                        )
                     )
                 }
 

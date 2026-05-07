@@ -31,12 +31,10 @@ enum LLMPolisherError: Error, LocalizedError {
 actor LLMPolisher {
     typealias PromptProvider = @Sendable @MainActor (_ text: String) -> (systemPrompt: String, userContent: String)
 
-    static let shared = LLMPolisher(
-        promptProvider: { text in
+    static let shared = LLMPolisher        { text in
             let promptManager = PromptManager.shared
             return (promptManager.systemPrompt, promptManager.renderUserPrompt(text: text))
         }
-    )
 
     struct RuntimeProbe {
         let line: String
@@ -172,7 +170,7 @@ actor LLMPolisher {
             let decoded = try JSONDecoder().decode(TagResponse.self, from: data)
             let names = Set(decoded.models.map { $0.name })
             let target = configuredModel
-            let hasModel = names.contains(target) || names.contains(where: { $0.hasPrefix("\(target):") })
+            let hasModel = names.contains(target) || names.contains { $0.hasPrefix("\(target):") }
 
             if hasModel {
                 return RuntimeProbe(
@@ -203,7 +201,7 @@ actor LLMPolisher {
         }
 
         let base = normalizedBaseURL
-        let model   = configuredModel
+        let model = configuredModel
 
         let endpointURL = "\(base)/v1/chat/completions"
         MurmurLogger.network.info("POST \(endpointURL, privacy: .public) model=\(model, privacy: .public)")
@@ -234,7 +232,7 @@ actor LLMPolisher {
             "model": model,
             "messages": [
                 ["role": "system", "content": systemPrompt],
-                ["role": "user",   "content": userContent]
+                ["role": "user", "content": userContent]
             ],
             "max_tokens": 1024,
             "temperature": 0
@@ -249,8 +247,8 @@ actor LLMPolisher {
             throw LLMPolisherError.httpError(http.statusCode, body, url.absoluteString)
         }
 
-        struct Message:    Decodable { let content: String }
-        struct Choice:     Decodable { let message: Message }
+        struct Message: Decodable { let content: String }
+        struct Choice: Decodable { let message: Message }
         struct Completion: Decodable { let choices: [Choice] }
 
         let completion = try JSONDecoder().decode(Completion.self, from: data)

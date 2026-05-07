@@ -4,7 +4,6 @@ import SwiftUI
 /// Bottom-center floating HUD panel with frosted glass background.
 /// Shows waveform bars + live text while dictating.
 final class CapsulePanel: NSPanel {
-
     let viewModel = CapsuleViewModel()
     private var hostingView: NSHostingView<AnyView>!
 

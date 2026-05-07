@@ -16,7 +16,6 @@ struct TextInsertionTarget {
 }
 
 enum TextInsertionService {
-
     // MARK: - Clipboard
 
     @discardableResult
@@ -164,7 +163,6 @@ enum TextInsertionService {
     }
 
     private static func insertTextDirectly(_ text: String, into focusedElement: AXUIElement) -> Bool {
-
         guard isAttributeSettable(kAXValueAttribute as CFString, on: focusedElement) else {
             return false
         }

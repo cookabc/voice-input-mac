@@ -56,11 +56,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     override init() {
         let configManager = ConfigManager.shared
         let promptManager = PromptManager.shared
-        let polisher = LLMPolisher(
-            promptProvider: { text in
+        let polisher = LLMPolisher            { text in
                 (promptManager.systemPrompt, promptManager.renderUserPrompt(text: text))
             }
-        )
 
         self.configManager = configManager
         self.promptManager = promptManager

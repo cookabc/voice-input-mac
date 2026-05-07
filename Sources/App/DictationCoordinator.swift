@@ -2,7 +2,6 @@ import AppKit
 
 @MainActor
 final class DictationCoordinator {
-
     private let capsulePanel: CapsulePanel
     private let audioSession: any AudioRecording
     private let finalTranscriptionEngine: any FinalTranscriptionEngine
